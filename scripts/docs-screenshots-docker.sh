@@ -29,7 +29,8 @@ docker build \
 
 echo ">> Running the E2E suite in docs mode"
 # node_modules lives in a named volume so the Linux install never touches the host's.
-docker run --rm \
+# --shm-size: Chromium crashes ("Target crashed") with Docker's default 64MB /dev/shm.
+docker run --rm --shm-size=1g \
   -v "${ROOT}:/work" \
   -v digiscript-docs-node-modules:/work/client/node_modules \
   -v digiscript-docs-pnpm-store:/root/.local/share/pnpm \
@@ -42,6 +43,13 @@ docker run --rm \
     pnpm run build
     status=0
     pnpm run test:e2e:docs || status=$?
-    chown -R "${HOST_UID}:${HOST_GID}" /work/docs/images 2>/dev/null || true
+    # The container runs as root on a bind mount: hand everything it wrote back to the host user
+    # (images, the frontend build, the copied docs, and the Playwright report folders).
+    for path in /work/docs/images /work/server/static /work/client/public/docs \
+                /work/client/test-results /work/client/playwright-report /work/client/junit; do
+      if [ -e "$path" ]; then
+        chown -R "${HOST_UID}:${HOST_GID}" "$path" || echo "warning: could not chown $path" >&2
+      fi
+    done
     exit $status
   '

@@ -1,8 +1,11 @@
 /**
- * REST seeding for states that are slow or fiddly to build through the UI (a populated
- * stage plan, a branched revision history, ...). Used by the documentation screenshot
- * scenarios: the UI is still what gets photographed, but the data behind it is created
+ * REST seeding for states that are slow or fiddly to build through the UI (currently a
+ * populated stage plan; the mic-allocation scenario seeds inline in its spec using `ShowApi`).
+ * The UI is still what gets exercised and photographed, but the data behind it is created
  * here, and removed again afterwards so later specs see the database they expect.
+ *
+ * `idByName` matches the first item with that name, so seed only into a database where the
+ * names it uses (Chair, Table, Castle Wall, Alice, Bob, ...) don't already exist.
  */
 import type { APIRequestContext } from '@playwright/test';
 
@@ -69,10 +72,10 @@ export class ShowApi {
 export interface StagePlan {
   sceneIds: number[];
   propIds: number[];
-  sceneryId: number;
+  sceneryId?: number;
   crewIds: number[];
-  propTypeId: number;
-  sceneryTypeId: number;
+  propTypeId?: number;
+  sceneryTypeId?: number;
 }
 
 /**
@@ -86,36 +89,50 @@ export interface StagePlan {
  * Allocations are blocked while a live session is running, so seed before starting one.
  */
 export async function seedStagePlan(api: ShowApi): Promise<StagePlan> {
+  const plan: StagePlan = { sceneIds: [], propIds: [], crewIds: [] };
+  try {
+    await buildStagePlan(api, plan);
+  } catch (error) {
+    // Don't strand a half-built plan in the database for later specs.
+    await removeStagePlan(api, plan);
+    throw error;
+  }
+  return plan as StagePlan;
+}
+
+async function buildStagePlan(api: ShowApi, plan: StagePlan): Promise<void> {
   const actId = await api.idByName('show/act', 'acts', 'Act 1');
   const scene1 = await api.idByName('show/scene', 'scenes', 'Scene 1');
   await api.post('show/scene', { act_id: actId, name: 'Scene 2', previous_scene_id: scene1 });
   const scene2 = await api.idByName('show/scene', 'scenes', 'Scene 2');
   await api.post('show/scene', { act_id: actId, name: 'Scene 3', previous_scene_id: scene2 });
   const scene3 = await api.idByName('show/scene', 'scenes', 'Scene 3');
+  plan.sceneIds.push(scene2, scene3);
 
   await api.post('show/stage/props/types', { name: 'Furniture' });
   const propTypeId = await api.idByName('show/stage/props/types', 'prop_types', 'Furniture');
+  Object.assign(plan, { propTypeId });
   await api.post('show/stage/scenery/types', { name: 'Backdrop' });
   const sceneryTypeId = await api.idByName('show/stage/scenery/types', 'scenery_types', 'Backdrop');
+  Object.assign(plan, { sceneryTypeId });
 
-  const propIds: number[] = [];
   for (const name of ['Chair', 'Table']) {
     await api.post('show/stage/props', { name, prop_type_id: propTypeId });
-    propIds.push(await api.idByName('show/stage/props', 'props', name));
+    plan.propIds.push(await api.idByName('show/stage/props', 'props', name));
   }
-  const [chair, table] = propIds;
+  const [chair, table] = plan.propIds;
   await api.post('show/stage/scenery', { name: 'Castle Wall', scenery_type_id: sceneryTypeId });
   const wall = await api.idByName('show/stage/scenery', 'scenery', 'Castle Wall');
+  Object.assign(plan, { sceneryId: wall });
 
-  const crewIds: number[] = [];
   for (const [first, last] of [
     ['Alice', 'Brown'],
     ['Bob', 'Green'],
   ]) {
     await api.post('show/stage/crew', { firstName: first, lastName: last });
-    crewIds.push(await api.idByName('show/stage/crew', 'crew', first, 'first_name'));
+    plan.crewIds.push(await api.idByName('show/stage/crew', 'crew', first, 'first_name'));
   }
-  const [alice, bob] = crewIds;
+  const [alice, bob] = plan.crewIds;
 
   for (const scene of [scene1, scene2, scene3]) {
     await api.post('show/stage/props/allocations', { props_id: chair, scene_id: scene });
@@ -134,23 +151,36 @@ export async function seedStagePlan(api: ShowApi): Promise<StagePlan> {
   await assign(bob, scene1, 'set', { scenery_id: wall });
   await assign(alice, scene2, 'strike', { scenery_id: wall });
   await assign(bob, scene2, 'set', { prop_id: table });
-
-  return {
-    sceneIds: [scene2, scene3],
-    propIds,
-    sceneryId: wall,
-    crewIds,
-    propTypeId,
-    sceneryTypeId,
-  };
 }
 
-/** Remove everything `seedStagePlan` created (deleting items cascades their allocations). */
+/**
+ * Remove everything `seedStagePlan` created (deleting items cascades their allocations).
+ * Each delete is attempted independently, so one that fails (or whose item was never created)
+ * doesn't strand the rest; the first failure is rethrown at the end.
+ */
 export async function removeStagePlan(api: ShowApi, plan: StagePlan): Promise<void> {
-  for (const id of plan.propIds) await api.del('show/stage/props', id);
-  await api.del('show/stage/scenery', plan.sceneryId);
-  for (const id of plan.crewIds) await api.del('show/stage/crew', id);
-  await api.del('show/stage/props/types', plan.propTypeId);
-  await api.del('show/stage/scenery/types', plan.sceneryTypeId);
-  for (const id of plan.sceneIds.slice().reverse()) await api.del('show/scene', id);
+  const steps: Array<() => Promise<void>> = [
+    ...plan.propIds.map((id) => () => api.del('show/stage/props', id)),
+    ...(plan.sceneryId === undefined ? [] : [() => api.del('show/stage/scenery', plan.sceneryId!)]),
+    ...plan.crewIds.map((id) => () => api.del('show/stage/crew', id)),
+    ...(plan.propTypeId === undefined
+      ? []
+      : [() => api.del('show/stage/props/types', plan.propTypeId!)]),
+    ...(plan.sceneryTypeId === undefined
+      ? []
+      : [() => api.del('show/stage/scenery/types', plan.sceneryTypeId!)]),
+    ...plan.sceneIds
+      .slice()
+      .reverse()
+      .map((id) => () => api.del('show/scene', id)),
+  ];
+  let firstError: unknown;
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+  if (firstError) throw firstError;
 }

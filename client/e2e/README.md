@@ -89,28 +89,38 @@ pnpm run test:e2e:docs
 pnpm run docs:shots:check
 ```
 
-- **Opt-in.** `DOCS_SCREENSHOTS=1` (set by the scripts above) turns on `docShot()` in
-  `e2e/docs-shots.ts`; without it `docShot()` does nothing, so normal and CI runs are unchanged.
-  Docs mode only runs Chromium, and still runs the _whole_ suite (specs depend on each other).
+- **Opt-in.** `DOCS_SCREENSHOTS=1` (set by the scripts above) turns on `docShot()` and the fixed
+  rendering in `e2e/docs-shots.ts`; without it those do nothing, so screenshots are strictly
+  opt-in. The extra E2E coverage added to reach each documented screen (seeding, the stage,
+  mic, revision, session and COMPACT-mode scenarios) is ordinary test code and runs every time,
+  in Chromium and Firefox. Docs mode only runs Chromium, and still runs the _whole_ suite (specs
+  depend on each other).
 - **Fixed size.** In docs mode every spec's context is created by `newContext(browser)` with a
   1728x992 viewport at device scale factor 2, so images are always 3456x1984 whatever the host
   display. Always create contexts with `newContext(browser)`, never `browser.newContext()`.
 - **No churn.** Runs use `--update-snapshots=changed`: a file is rewritten only if more than
-  0.2% of its pixels differ from the committed image. Running twice in a row should leave
+  0.02% of its pixels differ from the committed image. Running twice in a row should leave
   `git status` clean.
   To force every image to be rewritten (e.g. after changing how screenshots are taken), set
   `DOCS_UPDATE=all`.
 - **Why Docker.** Chromium renders text a little differently on macOS, Windows and Linux. The
   container (`e2e/docker/Dockerfile`) pins one environment so everyone produces the same pixels.
-- **Adding a screenshot.** Reference the image from `docs/pages/**` as
-  `../images/<folder>/<name>.png` and add `await docShot(page, '<folder>/<name>')` where the UI is
-  in the state the docs describe. `docs:shots:check` (also run in CI) fails if the two disagree.
+- **Adding a screenshot.** Reference the image from the markdown under `docs/` (as
+  `../images/<folder>/<name>.png`, or `../../images/...` from `docs/pages/show_config/`) and add
+  `await docShot(page, '<folder>/<name>')` where the UI is in the state the docs describe.
+  `docs:shots:check` (also run in CI) fails if the two disagree, if a referenced image doesn't
+  exist, or if a `docShot(` call isn't in the form `docShot(<identifier>, '<single-quoted name>'`
+  that it can read (Prettier keeps single quotes, so this holds by default).
 - **Anything that varies per run** (timestamps, generated passwords/tokens, hostnames) must be
   neutralised so the image is stable: `fixText` replaces the text with a fixed value, `mask`
-  paints over an element. `docShot()` already waits for toasts to clear.
-- **Seeding.** States that are slow to build through the UI (a populated stage plan, mic
-  allocations with conflicts) are created over REST with `e2e/seed.ts`, photographed through the
-  UI, then removed so later specs see the database they expect.
+  paints over an element. Both fail the test if their selector matches nothing, and `fixText`
+  also fails if the text it is about to replace looks broken (`undefined`, `Invalid Date`).
+  `docShot()` already waits for toasts to clear.
+- **Seeding.** States that are slow to build through the UI are created over REST using
+  `ShowApi` from `e2e/seed.ts` (the stage plan via `seedStagePlan`; the mic-allocation conflicts
+  inline in spec 09), photographed through the UI, then removed so later specs see the database
+  they expect. The COMPACT-mode show built in spec 13 is the exception: it is left behind because
+  deleting it currently fails (#1561).
 
 ## Debugging
 

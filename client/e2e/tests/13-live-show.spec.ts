@@ -74,9 +74,15 @@ test.afterAll(async ({ request }) => {
   await leaderCtx.close();
   await followerCtx.close();
 
-  await removeStagePlan(await ShowApi.asAdmin(request), stagePlan);
-  const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
-  await deleteUserByUsername(request, adminToken, FOLLOWER_USERNAME);
+  // Independent steps: a failed attempt may have left the stage plan undeletable (e.g. a
+  // session still live), and that must not stop the follower user being removed or mask the
+  // test's own failure.
+  try {
+    if (stagePlan) await removeStagePlan(await ShowApi.asAdmin(request), stagePlan);
+  } finally {
+    const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
+    await deleteUserByUsername(request, adminToken, FOLLOWER_USERNAME);
+  }
 });
 
 // ── Session lifecycle ──────────────────────────────────────────────────────
@@ -308,6 +314,12 @@ test('can toggle Stage Manager mode', async () => {
   // The Plan button on a scene card lists what is being set and struck, with the crew assigned.
   await leaderPage.locator('.stage-manager-pane button:has-text("Plan")').first().click();
   await waitForModal(leaderPage, /Plan/);
+  // Scene 1 sets the Castle Wall (Bob) and the Chair (Alice) - see seedStagePlan.
+  const planModal = leaderPage.locator('.modal.show');
+  await expect(planModal).toContainText('Castle Wall');
+  await expect(planModal).toContainText('Bob Green');
+  await expect(planModal).toContainText('Chair');
+  await expect(planModal).toContainText('Alice Brown');
   await docShot(leaderPage, 'live_show/live_plan_modal_crew', {
     mask: [elapsedTime(leaderPage)],
   });
@@ -351,8 +363,14 @@ test('can stop the show session', async () => {
 // ── COMPACT script mode ───────────────────────────────────────────────────
 //
 // A show's script mode is fixed when it is created, so the single-column COMPACT live view
-// needs a show of its own. Build a small one, run it live, then put the main show back and
-// delete it so later specs are unaffected.
+// needs a show of its own. Build a small one, run it live, then put the main show back.
+//
+// The COMPACT show is left in the database afterwards because deleting it currently fails
+// (#1561; see the fixme test at the end). That is safe for the specs after this one: spec 14
+// only touches user settings, and spec 15 works on whichever show is loaded (the main show,
+// reloaded below). The COMPACT show's session has ended, its script and cues belong to it
+// alone, and the edit lock taken while seeding its script is released before its session starts
+// (a leaked editor would make spec 15's edit/cut requests fail).
 
 const COMPACT_SHOW = 'E2E Compact Show';
 
@@ -430,15 +448,18 @@ test('seeds the compact show with a script and cues', async ({ request }) => {
 });
 
 test('the COMPACT live view shows a single-column script with its cues', async () => {
-  // Release the edit lock taken above before running the show.
+  // Release the edit lock taken above before running the show. The lock survives a reload and
+  // is a server-wide flag, so a leaked editor would reject spec 15's edit/cut requests.
+  // "Stop Editing" only renders after the WS editor-status round trip, so wait for either
+  // settled state before deciding.
   await leaderPage.goto(`${UI_BASE}/show-config/script`);
   await waitForAppReady(leaderPage);
   const stopEditing = leaderPage.locator('button:has-text("Stop Editing")');
-  if (await stopEditing.isVisible({ timeout: 5_000 }).catch(() => false)) {
+  const editButton = leaderPage.getByRole('button', { name: 'Edit', exact: true });
+  await expect(stopEditing.or(editButton)).toBeVisible({ timeout: 10_000 });
+  if (await stopEditing.isVisible()) {
     await stopEditing.click();
-    await expect(leaderPage.getByRole('button', { name: 'Edit', exact: true })).toBeVisible({
-      timeout: 10_000,
-    });
+    await expect(editButton).toBeVisible({ timeout: 10_000 });
   }
 
   await leaderPage.locator('text=Live Config').click();
@@ -477,7 +498,17 @@ test('reloads the main show', async () => {
   await afterLoad;
   await waitForAppReady(leaderPage);
   await expect(mainRow.locator('button:has-text("Loaded")')).toBeVisible({ timeout: 10_000 });
-  // The COMPACT show is deliberately left in place: DELETE /api/v1/show?id=<n> currently
-  // fails with a 500 (after ~5s) for a show that has script lines and cues, so deleting it
-  // here would fail the spec. Later specs don't depend on the list of shows.
+});
+
+// Deleting a show that has script lines and cues returns a 500 after ~5s, so the COMPACT show
+// above is left in the database. Remove this fixme and delete the show there once fixed.
+test.fixme('deletes the COMPACT show (#1561)', async () => {
+  const compactRow = leaderPage.locator('tr', {
+    has: leaderPage.locator(`td:has-text("${COMPACT_SHOW}")`),
+  });
+  await compactRow.locator('button:has-text("Delete")').click();
+  await confirmDialog(leaderPage);
+  await expect(leaderPage.locator(`td:has-text("${COMPACT_SHOW}")`)).not.toBeVisible({
+    timeout: 20_000,
+  });
 });

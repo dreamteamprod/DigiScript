@@ -196,6 +196,9 @@ let stagePlan: StagePlan;
 
 test('seeds a populated stage plan', async ({ request }) => {
   stagePlan = await seedStagePlan(await ShowApi.asAdmin(request));
+  expect(stagePlan.propIds).toHaveLength(2);
+  expect(stagePlan.crewIds).toHaveLength(2);
+  expect(stagePlan.sceneIds).toHaveLength(2);
   await page.goto(`${UI_BASE}/show-config/stage`);
   await waitForAppReady(page);
 });
@@ -263,5 +266,10 @@ test('Crew timeline lists each crew member with their SET and STRIKE assignments
 });
 
 test('removes the seeded stage plan', async ({ request }) => {
-  await removeStagePlan(await ShowApi.asAdmin(request), stagePlan);
+  const api = await ShowApi.asAdmin(request);
+  await removeStagePlan(api, stagePlan);
+  const { crew } = await api.get<{ crew: Array<{ first_name: string }> }>('show/stage/crew');
+  expect(crew.map((c) => c.first_name)).not.toContain('Alice');
+  const { props } = await api.get<{ props: Array<{ name: string }> }>('show/stage/props');
+  expect(props.map((p) => p.name)).not.toContain('Chair');
 });

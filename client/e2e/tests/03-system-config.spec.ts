@@ -422,16 +422,24 @@ test('can change JWT Token Lifetime and submit successfully', async () => {
   // match the server, making hasChanges false. Selecting before this settles causes a race where
   // the WS update overwrites our selection and Submit stays disabled.
   await expect(page.locator('button:has-text("Submit")')).toBeDisabled({ timeout: 10_000 });
-  // Restore default (1 day = 24 hours)
-  // A late WS broadcast can still overwrite the selection, so re-select and submit as one retried step.
+  // Restore default (1 day = 24 hours). A late WS SETTINGS_CHANGED broadcast can overwrite the
+  // selection after Submit has enabled (the race described above), so re-select and submit as
+  // one retried step rather than asserting between the two.
   await expect(async () => {
     await select.selectOption({ label: '1 day' });
-    await page.locator('button:has-text("Submit")').click({ timeout: 1_500 });
-  }).toPass({ timeout: 15_000 });
+    await page.locator('button:has-text("Submit")').click({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000 });
   await page
     .locator('.v-toast__item')
     .waitFor({ state: 'detached', timeout: 10_000 })
     .catch(() => {});
+
+  // The restore must really have been saved: later specs assume the default lifetime.
+  await page.reload();
+  await waitForAppReady(page);
+  await page.click('.nav-link:has-text("Settings")');
+  await page.locator('.card-header:has-text("Security")').click();
+  await expect(page.locator('#jwt_token_lifetime_hours-input option:checked')).toHaveText('1 day');
 });
 
 // ── System tab ────────────────────────────────────────────────────────────

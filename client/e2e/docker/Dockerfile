@@ -6,14 +6,18 @@
 # Build context is the repo root, trimmed to requirements.txt by Dockerfile.dockerignore.
 FROM python:3.13-bookworm
 
-ARG NODE_MAJOR=24
 ARG PLAYWRIGHT_VERSION
 
-# Node (matching the repo's Node 24.x requirement) and pnpm via corepack.
-RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && corepack enable \
-    && rm -rf /var/lib/apt/lists/*
+# Node (matching the repo's Node 24.x requirement), copied from the official image rather than
+# installed by piping a vendor script into a root shell; pnpm via corepack.
+# Only node and its bundled modules are taken (the image's other /usr/local entries, such as a
+# yarn symlink into /opt, would dangle), then the three launcher symlinks are recreated.
+COPY --from=node:24-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:24-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && ln -s ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack \
+    && corepack enable
 
 # Backend dependencies, so global-setup can launch `python3 main.py`.
 COPY server/requirements.txt /tmp/requirements.txt

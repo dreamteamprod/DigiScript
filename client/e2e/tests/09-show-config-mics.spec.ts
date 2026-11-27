@@ -176,6 +176,7 @@ test('seeds allocations across three scenes with changeover conflicts', async ({
   micPlan.micId = mic2;
 
   const { characters } = await api.get<{ characters: Array<{ id: number }> }>('show/character');
+  expect(characters.length).toBeGreaterThanOrEqual(2);
   const [charA, charB] = characters.map((c) => c.id);
   await api.patch('show/microphones/allocations', {
     [mic1]: { [scene1]: charA, [scene2]: charB, [scene3]: charA },
@@ -231,7 +232,18 @@ test('switches to Availability sub-tab', async () => {
 
 test('removes the seeded scenes and microphone', async ({ request }) => {
   const api = await ShowApi.asAdmin(request);
-  await api.del('show/microphones', micPlan.micId!);
-  for (const id of micPlan.sceneIds) await api.del('show/scene', id);
-  await api.del('show/act', micPlan.actId!);
+  // Independent attempts so one failure doesn't strand the rest; the first error is rethrown.
+  const results = await Promise.allSettled([
+    ...(micPlan.micId === undefined ? [] : [api.del('show/microphones', micPlan.micId)]),
+    ...micPlan.sceneIds.map((id) => api.del('show/scene', id)),
+  ]);
+  if (micPlan.actId !== undefined) {
+    results.push(...(await Promise.allSettled([api.del('show/act', micPlan.actId)])));
+  }
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+  if (failed) throw failed.reason;
+  const { microphones } = await api.get<{ microphones: Array<{ name: string }> }>(
+    'show/microphones'
+  );
+  expect(microphones.map((m) => m.name)).not.toContain('Mic 2');
 });
