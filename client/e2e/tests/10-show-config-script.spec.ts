@@ -191,7 +191,10 @@ test('ArrowUp / ArrowDown move the open editor between lines, and Shift+Tab reac
   await expect(openInput()).toHaveValue('That is the question', { timeout: 5_000 });
   await expect(page.locator('.line-editor-card')).toHaveCount(1);
 
-  // Shift+Tab goes back from the text field to the character select before it.
+  // Shift+Tab goes back from the text field to the character select before it. Wait for
+  // the freshly opened card's own deferred autofocus to land first, or it can steal focus
+  // back to the text field after the keypress.
+  await expect(openInput()).toBeFocused();
   await openInput().press('Shift+Tab');
   await expect(page.locator('.line-editor-card select:focus')).toBeVisible();
 
