@@ -97,6 +97,24 @@ def _read_draft_sync(path: str) -> bytes:
         return f.read()
 
 
+async def _try_write(ws, message: dict, failure_message: str) -> None:
+    """Send *message* to *ws*, logging (never raising) if the send fails."""
+    try:
+        await ws.write_message(message)
+    except Exception:
+        get_logger().warning(failure_message, exc_info=True)
+
+
+async def _broadcast_to_room(room, message: dict, failure_message: str) -> None:
+    """Send *message* to every client in *room*, tolerating individual failures.
+
+    Iterates over a snapshot: each send awaits, and clients can disconnect (and so
+    leave ``room.clients``) mid-broadcast.
+    """
+    for client_ws in list(room.clients.keys()):
+        await _try_write(client_ws, message, failure_message)
+
+
 class ScriptRoom:
     """A collaborative editing room for a single script revision.
 
@@ -304,6 +322,99 @@ class ScriptRoom:
                     exc_info=True,
                 )
 
+    async def _save_pages(
+        self,
+        session: DigiDBSession,
+        revision: ScriptRevision,
+        show,
+        lines_by_page: list[dict],
+        deleted_line_ids: list[int],
+    ) -> tuple[dict[str, str], dict[str, str], set[int]]:
+        """Persist every page, broadcasting save progress after each one.
+
+        :returns: ``(new_line_id_map, new_part_id_map, changed_pages)``.
+        """
+        log = get_logger()
+        new_line_id_map: dict[str, str] = {}
+        new_part_id_map: dict[str, str] = {}
+        changed_pages: set[int] = set()
+
+        total_pages = len(lines_by_page)
+        if total_pages:
+            await self._broadcast_save_progress(0, total_pages)
+
+        previous_line = None
+        for i, page in enumerate(lines_by_page):
+            log.debug(
+                f"save_draft: processing page {page['page']} "
+                f"({len(page['lines'])} lines)"
+            )
+            previous_line, line_map, part_map = _save_script_page(
+                revision,
+                page["page"],
+                page["lines"],
+                deleted_line_ids,
+                session,
+                show,
+                previous_line,
+                changed_pages,
+            )
+            new_line_id_map.update(line_map)
+            new_part_id_map.update(part_map)
+            await self._broadcast_save_progress(i + 1, total_pages)
+        return new_line_id_map, new_part_id_map, changed_pages
+
+    def _record_id_aliases(self, new_line_id_map: dict[str, str]) -> None:
+        """Remember every id a save rewrites (UUID -> DB id, and old -> new DB id).
+
+        A client that has not received the id patch yet can still record a deletion
+        against the id it knows.
+        """
+        for old, new in new_line_id_map.items():
+            # An id this save just assigned names a live row, so it must stop being
+            # an alias key: SQLite reuses freed rowids, and a stale `new -> later`
+            # entry would send a later deletion of a *reused* id to the wrong row.
+            self.id_aliases.pop(new, None)
+            self.id_aliases[old] = new
+
+    def _patch_ydoc_ids(
+        self, new_line_id_map: dict[str, str], new_part_id_map: dict[str, str]
+    ) -> tuple[int, int]:
+        """Replace UUID/stale ``_id`` values in the Y.Doc with real DB ids.
+
+        :returns: ``(patched_lines, patched_parts)``.
+        """
+        log = get_logger()
+        pages_map = self.doc.get("pages", type=pycrdt.Map)
+        patched_lines = 0
+        patched_parts = 0
+        for page_key in sorted(numeric_page_keys(pages_map), key=int):
+            page_arr = pages_map[page_key]
+            for i in range(len(page_arr)):
+                line_map_obj = page_arr[i]
+                line_id_str = str(line_map_obj["_id"])
+                if line_id_str in new_line_id_map:
+                    new_id = new_line_id_map[line_id_str]
+                    log.debug(
+                        f"save_draft: patching Y.Doc line _id "
+                        f"{line_id_str!r} → {new_id!r}"
+                    )
+                    line_map_obj["_id"] = new_id
+                    patched_lines += 1
+                parts_arr = line_map_obj["parts"]
+                for j in range(len(parts_arr)):
+                    part_map_obj = parts_arr[j]
+                    part_id_str = str(part_map_obj["_id"])
+                    if part_id_str in new_part_id_map:
+                        new_pid = new_part_id_map[part_id_str]
+                        log.debug(
+                            f"save_draft: patching Y.Doc part _id "
+                            f"{part_id_str!r} → {new_pid!r}"
+                        )
+                        part_map_obj["_id"] = new_pid
+                        patched_parts += 1
+        return patched_lines, patched_parts
+
     async def save_draft(self, session: DigiDBSession) -> tuple[bytes, list[int]]:
         """Persist the current Y.Doc state to the database.
 
@@ -339,34 +450,9 @@ class ScriptRoom:
                 f"deleted_line_ids={deleted_line_ids}"
             )
 
-            new_line_id_map: dict[str, str] = {}
-            new_part_id_map: dict[str, str] = {}
-            changed_pages: set[int] = set()
-
-            total_pages = len(lines_by_page)
-            if total_pages:
-                await self._broadcast_save_progress(0, total_pages)
-
-            previous_line = None
-            for i, page in enumerate(lines_by_page):
-                log.debug(
-                    f"save_draft: processing page {page['page']} "
-                    f"({len(page['lines'])} lines)"
-                )
-                previous_line, line_map, part_map = _save_script_page(
-                    revision,
-                    page["page"],
-                    page["lines"],
-                    deleted_line_ids,
-                    session,
-                    show,
-                    previous_line,
-                    changed_pages,
-                )
-                new_line_id_map.update(line_map)
-                new_part_id_map.update(part_map)
-                if total_pages:
-                    await self._broadcast_save_progress(i + 1, total_pages)
+            new_line_id_map, new_part_id_map, changed_pages = await self._save_pages(
+                session, revision, show, lines_by_page, deleted_line_ids
+            )
 
             log.info(
                 f"save_draft: revision={self.revision_id} commit starting. "
@@ -377,15 +463,7 @@ class ScriptRoom:
             saved_pages = sorted(changed_pages)
             session.commit()
             log.info(f"save_draft: revision={self.revision_id} commit successful")
-            # Remember every id this save rewrites (UUID -> DB id, and old -> new DB
-            # id for changed lines): a client that has not received the id patch yet
-            # can still record a deletion against the id it knows.
-            for old, new in new_line_id_map.items():
-                # An id this save just assigned names a live row, so it must stop being
-                # an alias key: SQLite reuses freed rowids, and a stale `new -> later`
-                # entry would send a later deletion of a *reused* id to the wrong row.
-                self.id_aliases.pop(new, None)
-                self.id_aliases[old] = new
+            self._record_id_aliases(new_line_id_map)
 
             # Capture state before mutating so we can compute the delta to broadcast.
             # Must come before the deleted_line_ids wipe below — otherwise the wipe
@@ -414,35 +492,9 @@ class ScriptRoom:
                 return update, saved_pages
 
             # Patch the Y.Doc: replace UUID _id values with real DB ids.
-            pages_map = self.doc.get("pages", type=pycrdt.Map)
-            patched_lines = 0
-            patched_parts = 0
-            for page_key in sorted(numeric_page_keys(pages_map), key=int):
-                page_arr = pages_map[page_key]
-                for i in range(len(page_arr)):
-                    line_map_obj = page_arr[i]
-                    line_id_str = str(line_map_obj["_id"])
-                    if line_id_str in new_line_id_map:
-                        new_id = new_line_id_map[line_id_str]
-                        log.debug(
-                            f"save_draft: patching Y.Doc line _id "
-                            f"{line_id_str!r} → {new_id!r}"
-                        )
-                        line_map_obj["_id"] = new_id
-                        patched_lines += 1
-                    parts_arr = line_map_obj["parts"]
-                    for j in range(len(parts_arr)):
-                        part_map_obj = parts_arr[j]
-                        part_id_str = str(part_map_obj["_id"])
-                        if part_id_str in new_part_id_map:
-                            new_pid = new_part_id_map[part_id_str]
-                            log.debug(
-                                f"save_draft: patching Y.Doc part _id "
-                                f"{part_id_str!r} → {new_pid!r}"
-                            )
-                            part_map_obj["_id"] = new_pid
-                            patched_parts += 1
-
+            patched_lines, patched_parts = self._patch_ydoc_ids(
+                new_line_id_map, new_part_id_map
+            )
             log.info(
                 f"save_draft: revision={self.revision_id} Y.Doc patched "
                 f"({patched_lines} line IDs, {patched_parts} part IDs)"
@@ -668,53 +720,41 @@ class RoomManager:
                     id_update, saved_pages = await room.save_draft(session)
                 except Exception as e:
                     get_logger().exception("save_draft failed")
-                    try:
-                        await ws.write_message(
-                            {
-                                "OP": "NOOP",
-                                "ACTION": "SAVE_ERROR",
-                                "DATA": {"error": str(e)},
-                            }
-                        )
-                    except Exception:
-                        get_logger().warning(
-                            "Failed to notify client of save error", exc_info=True
-                        )
+                    await _try_write(
+                        ws,
+                        {
+                            "OP": "NOOP",
+                            "ACTION": "SAVE_ERROR",
+                            "DATA": {"error": str(e)},
+                        },
+                        "Failed to notify client of save error",
+                    )
                     return
 
             # Broadcast ID-patch update so all clients get real DB ids
             if id_update:
                 payload = base64.b64encode(id_update).decode("ascii")
-                for client_ws in list(room.clients.keys()):
-                    try:
-                        await client_ws.write_message(
-                            {
-                                "OP": "NOOP",
-                                "ACTION": "YJS_UPDATE",
-                                "DATA": {"payload": payload},
-                            }
-                        )
-                    except Exception:
-                        get_logger().warning(
-                            "Failed to broadcast ID-patch update to client",
-                            exc_info=True,
-                        )
+                await _broadcast_to_room(
+                    room,
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "YJS_UPDATE",
+                        "DATA": {"payload": payload},
+                    },
+                    "Failed to broadcast ID-patch update to client",
+                )
 
             # Notify all clients of successful save
             now = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
-            for client_ws in list(room.clients.keys()):
-                try:
-                    await client_ws.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "SCRIPT_SAVED",
-                            "DATA": {"last_saved_at": now},
-                        }
-                    )
-                except Exception:
-                    get_logger().warning(
-                        "Failed to notify client of successful save", exc_info=True
-                    )
+            await _broadcast_to_room(
+                room,
+                {
+                    "OP": "NOOP",
+                    "ACTION": "SCRIPT_SAVED",
+                    "DATA": {"last_saved_at": now},
+                },
+                "Failed to notify client of successful save",
+            )
 
             # The classic REST save tells every client which page it touched so any
             # that cache script pages (cue editor, live view) reload them; a
@@ -745,24 +785,20 @@ class RoomManager:
                     f"Failed to delete draft after successful save for "
                     f"revision {room.revision_id}"
                 )
-                try:
-                    await ws.write_message(
-                        {
-                            "OP": "NOOP",
-                            "ACTION": "COLLAB_ERROR",
-                            "DATA": {
-                                "error": (
-                                    "Save succeeded but draft cleanup failed; the "
-                                    "revision may still show as locked"
-                                )
-                            },
-                        }
-                    )
-                except Exception:
-                    get_logger().warning(
-                        "Failed to notify client of draft cleanup failure",
-                        exc_info=True,
-                    )
+                await _try_write(
+                    ws,
+                    {
+                        "OP": "NOOP",
+                        "ACTION": "COLLAB_ERROR",
+                        "DATA": {
+                            "error": (
+                                "Save succeeded but draft cleanup failed; the "
+                                "revision may still show as locked"
+                            )
+                        },
+                    },
+                    "Failed to notify client of draft cleanup failure",
+                )
 
             revision_id = room.revision_id
 
