@@ -9,7 +9,7 @@
     @ok="_handleOk"
     @hidden="_handleHidden"
   >
-    {{ message }}
+    <span class="confirm-message">{{ message }}</span>
   </BModal>
 </template>
 
@@ -18,3 +18,10 @@ import { useConfirm } from '@/composables/useConfirm';
 
 const { visible, message, currentOptions, _handleOk, _handleHidden } = useConfirm();
 </script>
+
+<style scoped>
+/* Messages may contain line breaks (e.g. a title line followed by detail lines). */
+.confirm-message {
+  white-space: pre-line;
+}
+</style>

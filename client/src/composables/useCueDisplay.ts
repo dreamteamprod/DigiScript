@@ -16,6 +16,14 @@ export function useCueDisplay() {
     return prefix ? `${prefix} ${cue.ident}` : (cue.ident ?? '');
   }
 
+  /** A cue type's colour, honouring the user's own colour override for it. */
+  function typeColour(cueTypeId: number | null | undefined): string {
+    const cueType = showStore.cueTypeById(cueTypeId ?? null);
+    if (!cueType) return '#000000';
+    const override = userStore.cueColourOverrides.find((o) => o.cue_type_id === cueType.id);
+    return override?.colour || cueType.colour || '#000000';
+  }
+
   function cueBackgroundColour(cue: Cue): string {
     const cueType = showStore.cueTypeById(cue.cue_type_id);
     if (!cueType) return '#000000';
@@ -58,6 +66,7 @@ export function useCueDisplay() {
   }
 
   return {
+    typeColour,
     cuePrefix,
     cueLabel,
     cueBackgroundColour,

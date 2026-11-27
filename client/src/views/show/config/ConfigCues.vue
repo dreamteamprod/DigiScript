@@ -2,8 +2,11 @@
   <BContainer class="mx-0" fluid>
     <BRow>
       <BCol>
-        <BTabs content-class="mt-3">
-          <BTab title="Cue Types" active>
+        <BTabs v-model:index="activeTab" content-class="mt-3">
+          <BTab title="Script Cues">
+            <CueEditor @new-type="openNewTypeFromSuggestion" @import="openImportFromEmptyState" />
+          </BTab>
+          <BTab title="Cue Types">
             <BTable
               id="cue-types-table"
               :items="showStore.cueTypes"
@@ -56,9 +59,6 @@
               :total-rows="showStore.cueTypes.length"
               aria-controls="cue-types-table"
             />
-          </BTab>
-          <BTab title="Cue Configuration">
-            <CueEditor />
           </BTab>
           <BTab title="Cue Counts">
             <CueCountStats />
@@ -211,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required, maxLength } from '@vuelidate/validators';
 import { BModal } from 'bootstrap-vue-next';
@@ -223,12 +223,17 @@ import { usePagination } from '@/composables/usePagination';
 import CueCountStats from '@/components/show/config/cues/CueCountStats.vue';
 import CueEditor from '@/components/show/config/cues/CueEditor.vue';
 import type { CueType } from '@/types/api/cues';
+import type { SuggestedCueType } from '@/constants/cueTypeSuggestions';
 
 const systemStore = useSystemStore();
 const showStore = useShowStore();
 const { confirm } = useConfirm();
 
 const { perPage, currentPage } = usePagination(15, 'config_cues');
+
+/** Tab order: 0 Script Cues, 1 Cue Types, 2 Cue Counts. */
+const activeTab = ref(0);
+const CUE_TYPES_TAB = 1;
 const submittingNewCueType = ref(false);
 const submittingEditCueType = ref(false);
 const deletingCueType = ref(false);
@@ -290,8 +295,18 @@ function editFieldState(key: keyof EditCueTypeForm): boolean | null {
   return field.$dirty ? !field.$error : null;
 }
 
+// A suggestion chosen on the Script Cues empty state pre-fills the new type form.
+let pendingPrefill: SuggestedCueType | null = null;
+
 function resetNewForm(): void {
-  newFormState.value = { prefix: '', description: '', colour: '#000000' };
+  newFormState.value = pendingPrefill
+    ? {
+        prefix: pendingPrefill.prefix,
+        description: pendingPrefill.description,
+        colour: pendingPrefill.colour,
+      }
+    : { prefix: '', description: '', colour: '#000000' };
+  pendingPrefill = null;
   submittingNewCueType.value = false;
   newV$.value.$reset();
 }
@@ -361,6 +376,19 @@ async function deleteCueType(cueType: CueType): Promise<void> {
       deletingCueType.value = false;
     }
   }
+}
+
+async function openNewTypeFromSuggestion(suggestion: SuggestedCueType | null): Promise<void> {
+  activeTab.value = CUE_TYPES_TAB;
+  pendingPrefill = suggestion;
+  await nextTick();
+  newCueTypeModal.value?.show();
+}
+
+async function openImportFromEmptyState(): Promise<void> {
+  activeTab.value = CUE_TYPES_TAB;
+  await nextTick();
+  await openImportModal();
 }
 
 async function openImportModal(): Promise<void> {

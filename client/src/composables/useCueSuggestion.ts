@@ -1,4 +1,7 @@
+import { computed, toValue, type MaybeRefOrGetter } from 'vue';
+import { useScriptStore } from '@/stores/script';
 import type { Cue, LinePosition } from '@/types/api/cues';
+import type { ScriptLine } from '@/types/api/script';
 
 /**
  * Suggested cue numbers and "nearest cues", per HANDOFF section 2.5.
@@ -255,4 +258,55 @@ export function nearestCues(
     previous: prev ? { cue: prev.cue, where: describeWhere(prev, line, 'before') } : null,
     next: next ? { cue: next.cue, where: describeWhere(next, line, 'after') } : null,
   };
+}
+
+// ── Wiring to the stores ─────────────────────────────────────────────────────
+
+/**
+ * The suggested number and nearest cues for adding a cue of one type to a line.
+ *
+ * The line's own position comes from the loaded page; the cues around it come from
+ * the server's `line_positions`, so neighbours on pages that are not loaded count.
+ */
+export function useLineSuggestion(
+  line: MaybeRefOrGetter<ScriptLine>,
+  typeId: MaybeRefOrGetter<number | null>
+) {
+  const scriptStore = useScriptStore();
+
+  const lineKey = computed<LineKey | null>(() => {
+    const current = toValue(line);
+    if (current.page == null) return null;
+    const index = scriptStore.getScriptPage(current.page).findIndex((l) => l.id === current.id);
+    return index >= 0 ? { page: current.page, index } : null;
+  });
+
+  const ordered = computed(() => {
+    const id = toValue(typeId);
+    return id == null ? [] : orderedCuesOfType(scriptStore.cues, scriptStore.linePositions, id);
+  });
+
+  const nearest = computed(() =>
+    lineKey.value ? nearestCues(ordered.value, lineKey.value) : { previous: null, next: null }
+  );
+
+  const suggestion = computed<SuggestionResult>(() => {
+    const id = toValue(typeId);
+    if (id == null || lineKey.value == null) {
+      return { value: null, reason: null, previous: null, next: null };
+    }
+    const { before, after } = splitAtLine(ordered.value, lineKey.value);
+    // Every cue of the type counts as used, including those whose line has no known position.
+    const used = Object.values(scriptStore.cues)
+      .flat()
+      .filter((c) => c.cue_type_id === id)
+      .map((c) => c.ident);
+    return suggestCueNumber(
+      before.map((e) => e.cue.ident),
+      after.map((e) => e.cue.ident),
+      used
+    );
+  });
+
+  return { lineKey, nearest, suggestion };
 }
