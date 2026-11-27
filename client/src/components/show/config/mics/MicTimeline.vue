@@ -48,7 +48,6 @@
           :width="totalWidth"
           :height="totalHeight"
           class="timeline-svg"
-          role="img"
           aria-label="Microphone allocation timeline by act and scene"
         >
           <!-- Act labels -->

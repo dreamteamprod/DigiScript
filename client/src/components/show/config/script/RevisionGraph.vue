@@ -7,7 +7,6 @@
         :width="width"
         :height="height"
         class="revision-graph"
-        role="img"
         aria-label="Script revision history graph"
       >
         <defs>

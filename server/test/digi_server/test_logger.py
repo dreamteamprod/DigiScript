@@ -314,8 +314,12 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
         def later_thread(_a):
             pass
 
-        self.enterContext(mock.patch.object(sys, "excepthook", later_sys))
-        self.enterContext(mock.patch.object(threading, "excepthook", later_thread))
+        # Assigned directly (not mock.patch) on purpose: these must land *after*
+        # install_exception_hooks(), and tearDown is the sole restorer of the
+        # global hooks - a patch cleanup would run after tearDown and re-leak
+        # the installed wrapper into later tests on this xdist worker.
+        sys.excepthook = later_sys
+        threading.excepthook = later_thread
         uninstall_exception_hooks()
         self.assertIs(later_sys, sys.excepthook)
         self.assertIs(later_thread, threading.excepthook)

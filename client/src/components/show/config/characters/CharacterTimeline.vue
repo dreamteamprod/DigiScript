@@ -26,7 +26,6 @@
           :width="totalWidth"
           :height="totalHeight"
           class="timeline-svg"
-          role="img"
           aria-label="Character timeline by act and scene"
         >
           <!-- Act labels -->

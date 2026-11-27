@@ -48,7 +48,6 @@
             :width="totalWidth"
             :height="totalHeight"
             class="timeline-svg"
-            role="img"
             aria-label="Stage items timeline by act and scene"
           >
             <g class="act-labels" :transform="`translate(${margin.left},0)`">
