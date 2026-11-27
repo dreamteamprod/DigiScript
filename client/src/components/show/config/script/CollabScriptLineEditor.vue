@@ -5,8 +5,8 @@
     :class="{ 'remote-editing-row': (remoteEditors?.length ?? 0) > 0 }"
     tabindex="-1"
     @keydown.esc="onEsc"
-    @keydown.up.self="$emit('navigateUp')"
-    @keydown.down.self="$emit('navigateDown')"
+    @keydown.up.self.prevent="$emit('navigateUp')"
+    @keydown.down.self.prevent="$emit('navigateDown')"
   >
     <RemoteEditorsBadge :names="remoteEditors ?? []" variant="editor" />
 
@@ -122,6 +122,12 @@
           <kbd>Enter</kbd> done, then add a line below &middot; <kbd>Tab</kbd> character to text
           &middot; <kbd>&uarr;</kbd> <kbd>&darr;</kbd> move between lines. Changes are already
           shared — Done just closes the editor.
+        </BCol>
+        <!-- Shown instead while the card itself (not a text input) has focus — Cue/Gap
+             lines — where Enter and Tab do nothing, so only list the keys that work. -->
+        <BCol class="keyboard-hint-row">
+          <kbd>Esc</kbd> done &middot; <kbd>&uarr;</kbd> <kbd>&darr;</kbd> move between lines.
+          Changes are already shared — Done just closes the editor.
         </BCol>
       </BRow>
     </BCol>
@@ -320,9 +326,20 @@ onMounted(() => {
   font-size: 0.8125rem;
   color: var(--bs-secondary-color);
 }
-.line-editor-card:has(input[type='text']:focus) .keyboard-hint,
-.line-editor-card:focus .keyboard-hint {
+.line-editor-card:has(input[type='text']:focus) .keyboard-hint {
   display: block;
+}
+.keyboard-hint-row {
+  display: none;
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+}
+.line-editor-card:focus .keyboard-hint-row {
+  display: block;
+}
+.keyboard-hint-row kbd {
+  font-size: 0.75rem;
 }
 .line-editor-card:focus {
   outline: none;
