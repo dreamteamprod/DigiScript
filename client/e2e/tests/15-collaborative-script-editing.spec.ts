@@ -546,6 +546,35 @@ test('inserts a line from the add-line divider and deletes it again', async () =
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
 });
 
+test('Up/Down and Esc keep working on a Cue line, which has no text input to hold focus (#1545)', async () => {
+  const card = page.locator('.line-editor-card');
+  const rowCountBefore = await page.locator('.script-line-row').count();
+
+  await page.click('button:has-text("Add Cue")');
+  // A cue line has no text input, so the card itself takes focus; without that, focus
+  // fell to <body> and none of the keys below did anything.
+  await expect(card).toBeFocused({ timeout: 5_000 });
+
+  // Up opens the line above (a dialogue line, whose text input takes focus)...
+  await page.keyboard.press('ArrowUp');
+  await expect(card.locator('input[type="text"]:visible')).toBeVisible({ timeout: 5_000 });
+  // ...and Down comes back to the cue line, focusing its card again.
+  await page.keyboard.press('ArrowDown');
+  await expect(card).toBeFocused({ timeout: 5_000 });
+
+  // Esc closes the (valid) cue line from the focused card.
+  await page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0, { timeout: 5_000 });
+
+  // Leave the draft as later tests expect it: remove the cue line again.
+  const cueRow = page.locator('.script-line-row').last();
+  await cueRow.hover();
+  await cueRow.locator('.line-edit-trigger').click();
+  await card.getByRole('button', { name: 'Delete Line' }).click();
+  await expect(card).toHaveCount(0, { timeout: 5_000 });
+  await expect(page.locator('.script-line-row')).toHaveCount(rowCountBefore);
+});
+
 test('Save commits the draft to the DB, not just the shared draft', async () => {
   const saveButton = page.getByRole('button', { name: 'Save', exact: true });
   await expect(saveButton).toBeEnabled();

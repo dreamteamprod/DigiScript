@@ -164,7 +164,9 @@ test('clicking "Click to edit" on an existing saved line reopens it in place', a
   );
 
   // Esc closes it again without changing anything (same as Done, but no save needed
-  // here since nothing was edited).
+  // here since nothing was edited). The input takes focus a frame after mounting, so
+  // wait for that first — a page-level Esc sent earlier lands on <body> and does nothing.
+  await expect(page.locator('input[type="text"]:visible').last()).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
   await expect(

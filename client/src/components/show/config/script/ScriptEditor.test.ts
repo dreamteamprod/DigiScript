@@ -139,6 +139,9 @@ describe('ScriptEditor', () => {
       saveScript: () => Promise<void>;
       linePartCuts: number[];
       savingInProgress: boolean;
+      loadBoundaryLines: () => Promise<void>;
+      previousLineOfStart: ScriptLine | null;
+      nextLineOfEnd: ScriptLine | null;
     };
   }
 
@@ -238,6 +241,63 @@ describe('ScriptEditor', () => {
       vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // reuses the index-1 tombstone
 
       expect(vm(w).editingLines.has('page_1_line_2')).toBe(true);
+    });
+  });
+
+  describe('rows are keyed by a stable identity, not their index', () => {
+    const viewerFor = (w: VueWrapper, lineId: number) =>
+      w.findAllComponents(ViewerStub).find((c) => c.props('line').id === lineId);
+
+    it('keeps a row’s component instance when a line is inserted above it', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2), makeLine(3)]);
+      const w = await mountEditor();
+      const before = viewerFor(w, 2);
+      expect(before).toBeDefined();
+
+      await vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // new line lands at index 1
+      await flushPromises();
+
+      // Index-keyed rows would hand line 2's old instance to the new line and give
+      // line 2 a different one — a reused instance can briefly show another line.
+      expect(viewerFor(w, 2)?.vm).toBe(before?.vm);
+    });
+
+    it('keeps a row’s component instance when an unsaved line above it is spliced out', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      await vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // unsaved line at index 1
+      vm(w).doneEditingLine(1, 1);
+      await flushPromises();
+      const before = viewerFor(w, 2); // now at index 2
+
+      vm(w).deleteLine(1, 1); // real splice: line 2 moves to index 1
+      await flushPromises();
+
+      expect(viewerFor(w, 2)?.vm).toBe(before?.vm);
+    });
+  });
+
+  describe('bulk-edit boundary lines skip soft-deleted rows', () => {
+    it('previousLineOfStart is the nearest live line, not a tombstone', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2), makeLine(3)]);
+      const w = await mountEditor();
+      vm(w).deleteLine(1, 1); // tombstone index 1
+
+      vm(w).onToggleSelect(2);
+      await vm(w).loadBoundaryLines();
+
+      expect(vm(w).previousLineOfStart?.id).toBe(1);
+    });
+
+    it('nextLineOfEnd is the nearest live line, not a tombstone', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2), makeLine(3)]);
+      const w = await mountEditor();
+      vm(w).deleteLine(1, 1);
+
+      vm(w).onToggleSelect(0);
+      await vm(w).loadBoundaryLines();
+
+      expect(vm(w).nextLineOfEnd?.id).toBe(3);
     });
   });
 

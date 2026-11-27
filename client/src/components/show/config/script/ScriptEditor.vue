@@ -86,7 +86,7 @@
       <BCol cols="12">
         <template
           v-for="(line, index) in currentPageLines"
-          :key="`page_${currentPage}_line_${index}`"
+          :key="scriptConfigStore.getLineKey(currentPage, index)"
         >
           <template v-if="!deletedLines.includes(index)">
             <ScriptLineEditor
@@ -645,17 +645,23 @@ function cutLinePart(linePartId: number): void {
   else linePartCuts.value.splice(idx, 1);
 }
 
+/** The cut-mode half of `saveScript`: persists the cut line parts. The store toasts its
+ * own failures, so on failure the user's pending cuts are simply kept. */
+async function saveCutsOnly(): Promise<void> {
+  savingInProgress.value = true;
+  try {
+    if (await scriptStore.saveCuts(linePartCuts.value)) {
+      linePartCuts.value = [...scriptStore.cuts];
+    }
+  } finally {
+    setupAutoSave();
+    savingInProgress.value = false;
+  }
+}
+
 async function saveScript(): Promise<void> {
   if (scriptConfigStore.cutMode) {
-    savingInProgress.value = true;
-    try {
-      if (await scriptStore.saveCuts(linePartCuts.value)) {
-        linePartCuts.value = [...scriptStore.cuts];
-      }
-    } finally {
-      setupAutoSave();
-      savingInProgress.value = false;
-    }
+    await saveCutsOnly();
     return;
   }
 
@@ -880,23 +886,16 @@ async function loadBoundaryLines(): Promise<void> {
   const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
   const { page: endPage, lineIndex: endIndex } = bulkEditEnd.value;
 
-  if (startIndex === 0 && startPage > 1) await loadPage(startPage - 1);
-  const endPageLines = scriptConfigStore.getTmpPage(endPage);
-  if (endIndex === endPageLines.length - 1) await loadPage(endPage + 1);
+  // The neighbours may sit on an adjacent page (a soft-deleted row can push the nearest
+  // live one past the page edge), so make sure both are loaded.
+  if (startPage > 1) await loadPage(startPage - 1);
+  await loadPage(endPage + 1);
 
-  const startPageLines = scriptConfigStore.getTmpPage(startPage);
-  if (startIndex > 0) {
-    previousLineOfStart.value = startPageLines[startIndex - 1] ?? null;
-  } else if (startPage > 1) {
-    previousLineOfStart.value = scriptConfigStore.getTmpPage(startPage - 1).slice(-1)[0] ?? null;
-  } else {
-    previousLineOfStart.value = null;
-  }
-
-  nextLineOfEnd.value =
-    endIndex < endPageLines.length - 1
-      ? (endPageLines[endIndex + 1] ?? null)
-      : (scriptConfigStore.getTmpPage(endPage + 1)[0] ?? null);
+  // getPreviousLine/getNextLine skip soft-deleted rows, which a raw `lines[i - 1]` would
+  // wrongly offer as the boundary. The selection never leaves the current page (it is
+  // cleared on page change), so currentPage is both the start and end page here.
+  previousLineOfStart.value = getPreviousLine(startIndex);
+  nextLineOfEnd.value = getNextLine(endIndex);
 }
 
 function openSetCharacterDialog(): void {
