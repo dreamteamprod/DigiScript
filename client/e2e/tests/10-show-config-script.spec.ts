@@ -13,6 +13,7 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -22,7 +23,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config/script`);
@@ -37,6 +38,7 @@ test.afterAll(async () => {
 
 test('script editor shows page navigation controls', async () => {
   await expect(page.locator('button:has-text("Go to Page")')).toBeVisible({ timeout: 15_000 });
+  await docShot(page, 'config_show/script_empty');
 });
 
 test('Edit button is visible for admin', async () => {
@@ -63,12 +65,32 @@ test('adds a dialogue line', async () => {
   await page.click('button:has-text("Add Dialogue")');
   // A ScriptLineEditor row appears with Done/Delete buttons
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/script_dialogue_line_editing');
+  await page.locator('button:has-text("Delete Line")').first().click();
+  await expect(page.locator('button:has-text("Done")')).toHaveCount(0);
 });
 
 test('adds a stage direction via the add-to-end-of-page footer', async () => {
   await page.click('button:has-text("Add Direction")');
-  // At least two Done buttons are now visible (one per open editor)
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/script_stage_direction_editing');
+  await page.locator('button:has-text("Delete Line")').first().click();
+  await expect(page.locator('button:has-text("Done")')).toHaveCount(0);
+});
+
+test('adds a cue line', async () => {
+  await page.click('button:has-text("Add Cue")');
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/script_cue_line_editing');
+  await page.locator('button:has-text("Delete Line")').first().click();
+  await expect(page.locator('button:has-text("Done")')).toHaveCount(0);
+});
+
+test('adds a spacing line', async () => {
+  await page.click('button:has-text("Add Gap")');
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/script_spacing_line_editing');
+  // Left open: the next test stops editing with an unsaved change and must be asked to confirm.
 });
 
 test('stops editing without saving', async () => {
@@ -334,6 +356,7 @@ test('stops cut mode without blank-page flash', async () => {
   ).toBeVisible();
   // No edit controls are shown after stopping
   await expect(page.locator('.line-edit-trigger')).toHaveCount(0);
+  await docShot(page, 'config_show/script_view_mode');
 });
 
 test('cut styling persists after re-entering cut mode', async () => {
@@ -408,6 +431,7 @@ test('adds a cue to the script line', async () => {
   await expect(page.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({
     timeout: 5_000,
   });
+  await docShot(page, 'config_show/cue_configuration_with_cues');
 });
 
 test('edits the cue identifier', async () => {
@@ -593,6 +617,7 @@ test('remove button appears when a second part is added', async () => {
 
   // One remove button per part
   await expect(lineEditor.locator('button.btn-outline-danger')).toHaveCount(2, { timeout: 3_000 });
+  await docShot(page, 'config_show/script_multi_part_dialogue_full_mode');
 });
 
 test('clicking remove reduces to single part and hides the remove button', async () => {

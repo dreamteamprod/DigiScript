@@ -13,6 +13,7 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -22,7 +23,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config/characters`);
@@ -37,6 +38,7 @@ test.afterAll(async () => {
 
 test('Characters tab shows New Character button', async () => {
   await expect(page.getByRole('button', { name: 'New Character', exact: true })).toBeVisible();
+  await docShot(page, 'config_show/characters_overview_empty');
 });
 
 test('creates a character', async () => {
@@ -61,6 +63,7 @@ test('creates a second character with description', async () => {
   await confirmModal(page);
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("Ophelia")').first()).toBeVisible();
+  await docShot(page, 'config_show/characters_overview');
 });
 
 test('edits a character', async () => {
@@ -196,6 +199,7 @@ test('switches to Character Groups sub-tab', async () => {
   await expect(
     page.locator('button:has-text("New Character Group"), button:has-text("New Group")')
   ).toBeVisible();
+  await docShot(page, 'config_show/character_groups_empty');
 });
 
 test('creates a character group', async () => {
@@ -205,6 +209,7 @@ test('creates a character group', async () => {
   await confirmModal(page);
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("Royalty")')).toBeVisible();
+  await docShot(page, 'config_show/character_groups_with_data');
 });
 
 test('deletes the character group', async () => {
@@ -220,6 +225,7 @@ test('navigates to Cast page', async () => {
   await page.goto(`${UI_BASE}/show-config/cast`);
   await waitForAppReady(page);
   await expect(page.locator('button:has-text("New Cast Member")')).toBeVisible();
+  await docShot(page, 'config_show/cast_overview_empty');
 });
 
 test('creates a cast member', async () => {
@@ -228,9 +234,11 @@ test('creates a cast member', async () => {
   const textInputs = page.locator('.modal.show input[type="text"]');
   await textInputs.nth(0).fill('Jane');
   await textInputs.nth(1).fill('Doe');
+  await docShot(page, 'config_show/create_cast');
   await confirmModal(page);
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("Jane")').first()).toBeVisible();
+  await docShot(page, 'config_show/cast_overview');
 });
 
 test('edits the cast member', async () => {
