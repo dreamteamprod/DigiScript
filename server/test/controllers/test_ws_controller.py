@@ -11,6 +11,7 @@ import inspect
 import json
 import math
 import os
+import re
 import textwrap
 import weakref
 from datetime import timedelta
@@ -4040,7 +4041,18 @@ class TestWSRobustness(_ReconnectTestBase):
         captured = await self._logs_for_raising_op(True)
         joined = "\n".join(captured.output)
         self.assertNotIn("SENTINEL-PAYLOAD", joined)
-        self.assertIn("BOOM_OP (", joined)
+        # The redacted pre-dispatch summary itself, not the completion line (whose
+        # "BOOM_OP (took ..." would also match a looser "BOOM_OP (" check).
+        pre_op = [
+            m
+            for m in captured.output
+            if re.search(r"WebSocket message from .*: BOOM_OP \(\d+ bytes\)", m)
+        ]
+        self.assertEqual(1, len(pre_op))
+        error_idx = next(
+            i for i, m in enumerate(captured.output) if "Unhandled error" in m
+        )
+        self.assertLess(captured.output.index(pre_op[0]), error_idx)
         self.assertIn("BOOM_OP (took ", joined)
 
     @gen_test
