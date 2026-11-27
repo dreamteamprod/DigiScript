@@ -166,27 +166,25 @@ const preview = computed<PreviewRow[]>(() =>
 );
 
 const changeCount = computed(() => preview.value.filter((p) => p.kind === 'change').length);
-const canApply = computed(
-  () =>
-    changeCount.value > 0 &&
-    (selectedCharacterId.value != null || selectedCharacterGroupId.value != null)
-);
-
-function handleOk(): void {
-  if (!canApply.value) return;
-  // Narrowed here, once, so neither editor has to re-narrow the two nullable refs. The
-  // character wins if both were somehow set (the combined dropdown can't do that, but
-  // the two separate selects could).
+/** The chosen assignee, narrowed once: exactly one of character / group, or null if
+ * neither is picked. The character wins if both were somehow set (the combined dropdown
+ * can't do that, but the two separate selects could). `canApply` and `handleOk` both
+ * derive from this, so they can never disagree about what is applicable. */
+const assignee = computed<CharacterAssignee | null>(() => {
   const partIndex = selectedPartIndex.value;
   if (selectedCharacterId.value != null) {
-    emit('apply', { partIndex, characterId: selectedCharacterId.value, characterGroupId: null });
-  } else if (selectedCharacterGroupId.value != null) {
-    emit('apply', {
-      partIndex,
-      characterId: null,
-      characterGroupId: selectedCharacterGroupId.value,
-    });
+    return { partIndex, characterId: selectedCharacterId.value, characterGroupId: null };
   }
+  if (selectedCharacterGroupId.value != null) {
+    return { partIndex, characterId: null, characterGroupId: selectedCharacterGroupId.value };
+  }
+  return null;
+});
+const canApply = computed(() => changeCount.value > 0 && assignee.value !== null);
+
+function handleOk(): void {
+  if (assignee.value === null || !canApply.value) return;
+  emit('apply', assignee.value);
 }
 
 function reset(): void {
