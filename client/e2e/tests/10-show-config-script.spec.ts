@@ -202,11 +202,22 @@ test('Esc and Enter leave an invalid line open instead of closing it', async () 
   const card = page.locator('.line-editor-card');
   await expect(card).toHaveCount(1, { timeout: 5_000 });
 
-  // A fresh dialogue line has no text or speaker yet, so it is invalid.
+  // A fresh dialogue line has no text or speaker yet, so it is invalid — and Done is
+  // disabled while it is, which proves the premise rather than assuming it.
+  await expect(card.getByRole('button', { name: 'Done' })).toBeDisabled();
   const input = card.locator('input[type="text"]:visible');
+
+  // A bare count check right after the keypress would pass before a (buggy) close had
+  // any chance to run, so let the key handler and Vue's re-render finish first.
+  const settle = () =>
+    page.evaluate(
+      () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+    );
   await input.press('Enter');
+  await settle();
   await expect(card).toHaveCount(1);
   await input.press('Escape');
+  await settle();
   await expect(card).toHaveCount(1);
 
   // Scoped to the card: an unscoped `.first()` can hit another Delete Line button.

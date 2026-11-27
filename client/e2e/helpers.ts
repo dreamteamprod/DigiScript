@@ -1,4 +1,4 @@
-import type { APIRequestContext, Locator, Page } from '@playwright/test';
+import { errors, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 import { BASE_URL } from './env.js';
 
@@ -145,7 +145,9 @@ export async function fillOpenLineEditor(
     .locator('select, input[type="text"]')
     .first()
     .waitFor({ timeout: 2_000 })
-    .catch(() => undefined);
+    .catch((error: unknown) => {
+      if (!(error instanceof errors.TimeoutError)) throw error;
+    });
   const actSelect = lineEditor.getByTestId('line-act-select');
   if ((await actSelect.count()) > 0) {
     await actSelect.selectOption({ label: act });
@@ -191,9 +193,11 @@ export async function selectLines(page: Page, lineTexts: string[]): Promise<void
     await clear.waitFor({ state: 'hidden', timeout: 3_000 });
   }
   for (const text of lineTexts) {
+    // Sequential on purpose: the first click sets the selection anchor and later ones
+    // extend the range, so running them in parallel would break the selection.
     const row = page.locator('.script-line-row').filter({ hasText: text });
-    await row.hover();
-    await row.getByRole('checkbox').click();
+    await row.hover(); // NOSONAR sequential UI interactions
+    await row.getByRole('checkbox').click(); // NOSONAR sequential UI interactions
   }
   const expected = `${lineTexts.length} line${lineTexts.length === 1 ? '' : 's'} selected`;
   await page.getByRole('toolbar', { name: 'Selected lines' }).getByText(expected).waitFor({
