@@ -376,6 +376,16 @@ defineExpose({
   font-size: 0.8125rem;
 }
 
+kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--bs-gray-600);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--bs-gray-200);
+  font-family: inherit;
+  font-size: 0.75rem;
+}
+
 .find-types {
   display: flex;
   gap: 8px;

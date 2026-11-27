@@ -98,6 +98,7 @@ defineExpose({ focusFind: () => findBox.value?.focus() });
 
 <style scoped>
 .cue-toolbar {
+  text-align: left;
   position: sticky;
   z-index: 100;
   padding: 10px 0;
