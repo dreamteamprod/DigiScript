@@ -149,9 +149,7 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
 
     def test_thread_excepthook_logs_and_counts(self):
         # Replace pytest's own thread hook so it doesn't flag the intended crash.
-        self.enterContext(
-            mock.patch.object(threading, "excepthook", lambda _args: None)
-        )
+        self.enterContext(mock.patch.object(threading, "excepthook"))
         install_exception_hooks()
         before = self._count("thread")
 

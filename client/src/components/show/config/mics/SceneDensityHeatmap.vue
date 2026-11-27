@@ -304,6 +304,12 @@ function getBarHeight(micCount: number): number {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .scene-bar {
+    transition: none;
+  }
+}
+
 .mic-count {
   color: #fff;
   font-weight: 600;

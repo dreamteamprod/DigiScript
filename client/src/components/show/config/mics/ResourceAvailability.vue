@@ -397,6 +397,12 @@ function getMicTooltip(micStatus: MicStatus): string {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .mic-status-item {
+    transition: none;
+  }
+}
+
 .mic-name {
   font-size: 0.875rem;
   font-weight: 600;
