@@ -390,8 +390,7 @@ import { presenceInitials, presenceColor, SELF_AVATAR_COLOR } from '@/js/presenc
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { LineUid } from '@/js/yjs/yjsSnapshot';
-import type { BulkEditPayload } from '@/types/bulkEdit';
-import { narrowAssignee } from '@/js/bulkEditLine';
+import type { BulkEditPayload, CharacterAssignee } from '@/types/bulkEdit';
 
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
@@ -1255,19 +1254,12 @@ function openMoveToSceneDialog(): void {
 }
 
 /** Applies a change to every line in the active selection — shared by "Set Character
- * or Group" and "Move to Scene", each building its own half of a `BulkEditPayload`
- * (the other half stays null). Selection is confined to the current page (see
+ * or Group" and "Move to Scene", each building its own kind of `BulkEditPayload`.
+ * Selection is confined to the current page (see
  * `onToggleSelect`), so this never needs to cross pages. */
 function applyToSelection(payload: BulkEditPayload): void {
   const bounds = selectionBounds.value;
   if (!bounds) return;
-  const character = payload.assignee
-    ? {
-        targetPartIndex: payload.assignee.partIndex - 1,
-        characterId: payload.assignee.characterId,
-        characterGroupId: payload.assignee.characterGroupId,
-      }
-    : null;
   // transact() is reentrant: each writer call below opens its own transaction with
   // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
   // rather than committing separately — so the whole change reaches peers as one update.
@@ -1276,51 +1268,38 @@ function applyToSelection(payload: BulkEditPayload): void {
     for (let i = bounds.startIndex; i <= bounds.endIndex; i += 1) {
       const line = draftLines.value[i];
       if (!line) continue;
-      if (payload.actScene) {
-        applyBulkActScene(
-          currentPage.value,
-          line,
-          payload.actScene.actId,
-          payload.actScene.sceneId
-        );
-      }
-      if (
-        character &&
+      if (payload.kind === 'actScene') {
+        applyBulkActScene(currentPage.value, line, payload.actId, payload.sceneId);
+      } else if (
         !applyBulkCharacter(
           currentPage.value,
           line,
-          character.targetPartIndex,
-          character.characterId,
-          character.characterGroupId
+          payload.partIndex - 1,
+          payload.characterId,
+          payload.characterGroupId
         )
       ) {
         skippedLines += 1;
       }
     }
   });
-  if (character && skippedLines > 0) {
+  if (payload.kind === 'assignee' && skippedLines > 0) {
     toast.warning(
       `${skippedLines} selected ${skippedLines === 1 ? 'line has' : 'lines have'} no part ${
-        character.targetPartIndex + 1
+        payload.partIndex
       }, so ${skippedLines === 1 ? 'it was' : 'they were'} skipped.`
     );
   }
 }
 
-function onSetCharacterApply(assignee: {
-  partIndex: number;
-  characterId: number | null;
-  characterGroupId: number | null;
-}): void {
-  const narrowed = narrowAssignee(assignee);
-  if (!narrowed) return;
-  applyToSelection({ actScene: null, assignee: narrowed });
+function onSetCharacterApply(assignee: CharacterAssignee): void {
+  applyToSelection({ kind: 'assignee', ...assignee });
   setCharDialog.value?.hide();
   clearSelection();
 }
 
 function onMoveToSceneApply(payload: { actId: number; sceneId: number }): void {
-  applyToSelection({ actScene: payload, assignee: null });
+  applyToSelection({ kind: 'actScene', ...payload });
   moveToSceneModal.value?.hide();
   clearSelection();
 }

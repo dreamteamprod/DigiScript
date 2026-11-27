@@ -30,19 +30,21 @@
  * change is actually carried out (delete + re-add the line locally, never a
  * `line_type` mutation on an existing line).
  */
-import { LINE_TYPES } from '@/constants/lineTypes';
+import { LINE_TYPES, type LineType } from '@/constants/lineTypes';
 import { LINE_TYPE_LABELS } from '@/js/lineTypeLabels';
 
 defineProps<{
+  /** A plain `number`, as `line_type` is on the API types — compared against, never
+   * assumed to be a known `LineType`. */
   modelValue: number;
   disabled?: boolean;
 }>();
 
 defineEmits<{
-  'update:modelValue': [value: number];
+  'update:modelValue': [value: LineType];
 }>();
 
-const options = [
+const options: { value: LineType; label: string }[] = [
   { value: LINE_TYPES.DIALOGUE, label: LINE_TYPE_LABELS[LINE_TYPES.DIALOGUE] },
   { value: LINE_TYPES.STAGE_DIRECTION, label: LINE_TYPE_LABELS[LINE_TYPES.STAGE_DIRECTION] },
   { value: LINE_TYPES.CUE_LINE, label: LINE_TYPE_LABELS[LINE_TYPES.CUE_LINE] },

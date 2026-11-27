@@ -67,6 +67,7 @@ import type { BModal } from 'bootstrap-vue-next';
 import { useUserStore } from '@/stores/user';
 import { buildCombinedCharacterOptions, type CombinedSelectOption } from '@/js/mruSortUtils';
 import type { Character, CharacterGroup } from '@/types/api/show';
+import type { CharacterAssignee } from '@/types/bulkEdit';
 
 export interface SelectedLinePreview {
   label: string;
@@ -81,9 +82,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  apply: [
-    payload: { partIndex: number; characterId: number | null; characterGroupId: number | null },
-  ];
+  apply: [payload: CharacterAssignee];
 }>();
 
 const userStore = useUserStore();
@@ -175,11 +174,19 @@ const canApply = computed(
 
 function handleOk(): void {
   if (!canApply.value) return;
-  emit('apply', {
-    partIndex: selectedPartIndex.value,
-    characterId: selectedCharacterId.value,
-    characterGroupId: selectedCharacterGroupId.value,
-  });
+  // Narrowed here, once, so neither editor has to re-narrow the two nullable refs. The
+  // character wins if both were somehow set (the combined dropdown can't do that, but
+  // the two separate selects could).
+  const partIndex = selectedPartIndex.value;
+  if (selectedCharacterId.value != null) {
+    emit('apply', { partIndex, characterId: selectedCharacterId.value, characterGroupId: null });
+  } else if (selectedCharacterGroupId.value != null) {
+    emit('apply', {
+      partIndex,
+      characterId: null,
+      characterGroupId: selectedCharacterGroupId.value,
+    });
+  }
 }
 
 function reset(): void {
