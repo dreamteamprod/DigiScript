@@ -102,6 +102,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useCueDisplay } from '@/composables/useCueDisplay';
+import { parseRangeText } from '@/js/cueRange';
 import type { Cue, CueGroup } from '@/types/api/cues';
 
 const props = defineProps<{
@@ -167,19 +168,14 @@ const canSave = computed(
     localCues.value.every((c) => c.ident.trim() !== '')
 );
 
-function parseRange(input: string): number[] | null {
-  const match = input.trim().match(/^(\d+)\s*>\s*(\d+)$/);
-  if (!match) return null;
-  const start = parseInt(match[1], 10);
-  const end = parseInt(match[2], 10);
-  if (start > end || end - start >= 10000) return null;
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+function parseRange(input: string): string[] | null {
+  return parseRangeText(input);
 }
 
 function addRange(): void {
-  const nums = parseRange(rangeInput.value);
-  if (!nums) return;
-  for (const n of nums) localCues.value.push({ ident: String(n) });
+  const idents = parseRange(rangeInput.value);
+  if (!idents) return;
+  for (const ident of idents) localCues.value.push({ ident });
   rangeInput.value = '';
 }
 

@@ -9,7 +9,7 @@ import type {
   CompiledScript,
   ScriptCut,
 } from '@/types/api/script';
-import type { Cue, CueGroup } from '@/types/api/cues';
+import type { Cue, CueGroup, LinePosition } from '@/types/api/cues';
 
 export const useScriptStore = defineStore('script', {
   state: () => ({
@@ -20,6 +20,7 @@ export const useScriptStore = defineStore('script', {
     maxPage: 1,
     cues: {} as Record<string, Cue[]>,
     cueGroups: [] as CueGroup[],
+    linePositions: {} as Record<string, LinePosition>,
   }),
 
   getters: {
@@ -148,6 +149,9 @@ export const useScriptStore = defineStore('script', {
     },
 
     async scriptPageChanged(data: { page: number }): Promise<void> {
+      // Lines moved, so the page/index of every cued line may have changed too.
+      // Only once cues have been loaded, so views that never show cues don't pay for it.
+      if (Object.keys(this.linePositions).length > 0) await this.loadCues();
       const pageStr = String(data.page);
       if (Object.hasOwn(this.script, pageStr)) {
         await this.loadScriptPage(data.page);
@@ -315,18 +319,21 @@ export const useScriptStore = defineStore('script', {
       this.script = {};
     },
 
-    async loadCues(): Promise<void> {
+    async loadCues(): Promise<boolean> {
       const response = await fetch(makeURL('/api/v1/show/cues'));
       if (response.ok) {
         const data = await response.json();
         this.cues = data.cues as Record<string, Cue[]>;
         this.cueGroups = (data.cue_groups ?? []) as CueGroup[];
-      } else {
-        log.error('Unable to load cues');
+        // Missing entries mean "position unknown", never "first line".
+        this.linePositions = (data.line_positions ?? {}) as Record<string, LinePosition>;
+        return true;
       }
+      log.error('Unable to load cues');
+      return false;
     },
 
-    async addNewCue(cue: { cueType: number; ident: string; lineId: number }): Promise<void> {
+    async addNewCue(cue: { cueType: number; ident: string; lineId: number }): Promise<boolean> {
       const response = await fetch(makeURL('/api/v1/show/cues'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -335,9 +342,10 @@ export const useScriptStore = defineStore('script', {
       if (response.ok) {
         await this.loadCues();
         toast.success('Added new cue!');
-      } else {
-        toast.error('Unable to add new cue');
+        return true;
       }
+      toast.error('Unable to add new cue');
+      return false;
     },
 
     async editCue(cue: {
@@ -345,7 +353,7 @@ export const useScriptStore = defineStore('script', {
       cueType: number;
       ident: string;
       lineId: number;
-    }): Promise<void> {
+    }): Promise<boolean> {
       const response = await fetch(makeURL('/api/v1/show/cues'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -354,12 +362,13 @@ export const useScriptStore = defineStore('script', {
       if (response.ok) {
         await this.loadCues();
         toast.success('Edited cue!');
-      } else {
-        toast.error('Unable to edit cue');
+        return true;
       }
+      toast.error('Unable to edit cue');
+      return false;
     },
 
-    async deleteCue(cue: { cueId: number; lineId: number }): Promise<void> {
+    async deleteCue(cue: { cueId: number; lineId: number }): Promise<boolean> {
       const params = new URLSearchParams({
         cueId: String(cue.cueId),
         lineId: String(cue.lineId),
@@ -371,9 +380,10 @@ export const useScriptStore = defineStore('script', {
       if (response.ok) {
         await this.loadCues();
         toast.success('Deleted cue!');
-      } else {
-        toast.error('Unable to delete cue');
+        return true;
       }
+      toast.error('Unable to delete cue');
+      return false;
     },
 
     async addCueGroup(payload: {
@@ -381,7 +391,7 @@ export const useScriptStore = defineStore('script', {
       labelOverride?: string;
       lineId: number;
       cues: { ident: string; sortOrder: number }[];
-    }): Promise<void> {
+    }): Promise<boolean> {
       const response = await fetch(makeURL('/api/v1/show/cues/groups'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -390,9 +400,10 @@ export const useScriptStore = defineStore('script', {
       if (response.ok) {
         await this.loadCues();
         toast.success('Added cue group!');
-      } else {
-        toast.error('Unable to add cue group');
+        return true;
       }
+      toast.error('Unable to add cue group');
+      return false;
     },
 
     async editCueGroup(payload: {
@@ -400,7 +411,7 @@ export const useScriptStore = defineStore('script', {
       labelOverride?: string;
       lineId: number;
       cues: { id?: number; ident: string; sortOrder: number }[];
-    }): Promise<void> {
+    }): Promise<boolean> {
       const response = await fetch(makeURL('/api/v1/show/cues/groups'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -409,12 +420,13 @@ export const useScriptStore = defineStore('script', {
       if (response.ok) {
         await this.loadCues();
         toast.success('Edited cue group!');
-      } else {
-        toast.error('Unable to edit cue group');
+        return true;
       }
+      toast.error('Unable to edit cue group');
+      return false;
     },
 
-    async deleteCueGroup(payload: { groupId: number; lineId: number }): Promise<void> {
+    async deleteCueGroup(payload: { groupId: number; lineId: number }): Promise<boolean> {
       const params = new URLSearchParams({
         groupId: String(payload.groupId),
         lineId: String(payload.lineId),
@@ -425,9 +437,10 @@ export const useScriptStore = defineStore('script', {
       if (response.ok) {
         await this.loadCues();
         toast.success('Deleted cue group!');
-      } else {
-        toast.error('Unable to delete cue group');
+        return true;
       }
+      toast.error('Unable to delete cue group');
+      return false;
     },
 
     async searchCues(payload: {
