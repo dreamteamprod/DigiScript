@@ -132,6 +132,7 @@ describe('ScriptEditor', () => {
       insertLineAt: (page: number, index: number, type: number) => void;
       beginEditingLine: (page: number, index: number) => void;
       doneEditingLine: (page: number, index: number) => void;
+      finishAndAddLine: (page: number, index: number) => void;
       onLineChange: (index: number, line: ScriptLine) => void;
       autosave: () => Promise<void>;
       firstInvalidLine: { page: string; error: string } | null;
@@ -162,6 +163,32 @@ describe('ScriptEditor', () => {
       vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING);
 
       expect(vm(w).selectionCount).toBe(0);
+    });
+  });
+
+  describe('finishAndAddLine', () => {
+    it('closes the current line and opens a new dialogue line below it', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      vm(w).beginEditingLine(1, 0);
+
+      vm(w).finishAndAddLine(1, 0);
+
+      expect(vm(w).editingLines.has('page_1_line_0')).toBe(false);
+      expect(useScriptConfigStore().getTmpPage(1)).toHaveLength(3);
+      expect(useScriptConfigStore().getTmpPage(1)[1].line_type).toBe(LINE_TYPES.DIALOGUE);
+    });
+
+    it('toasts instead of throwing when inserting the line fails', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      vi.spyOn(useScriptConfigStore(), 'insertBlankLine').mockImplementation(() => {
+        throw new Error('boom');
+      });
+
+      expect(() => vm(w).finishAndAddLine(1, 0)).not.toThrow();
+
+      expect(toast.error).toHaveBeenCalledWith('Unable to add a new line. Please try again.');
     });
   });
 
