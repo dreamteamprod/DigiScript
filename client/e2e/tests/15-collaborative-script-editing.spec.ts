@@ -423,7 +423,8 @@ test('a second browser can edit the same script at the same time', async ({ brow
   await expect(otherEditorRow2).toContainText('admin');
   // Every non-self row offers "Jump to" once its awareness has arrived.
   await expect(otherEditorRow).toContainText('Jump to');
-  await page.waitForTimeout(200); // let the dropdown's fade-in transition finish
+  // Let the dropdown's fade-in transition finish before the screenshot.
+  await expect(page.locator('.presence-menu.show').first()).toHaveCSS('opacity', '1');
   await page.screenshot({ path: '../docs/images/config_show/script_collab_editing.png' });
 
   // "Jump to" on the other editor's row switches to whatever page they're on.

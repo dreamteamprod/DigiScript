@@ -489,7 +489,7 @@ function blankLine(lineType: number): ScriptLine {
   };
 }
 
-async function addNewLine(lineType: number): Promise<void> {
+function addNewLine(lineType: number): void {
   const line = blankLine(lineType);
   scriptConfigStore.addBlankLine(currentPage.value, line);
   const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
@@ -506,10 +506,10 @@ async function addNewLine(lineType: number): Promise<void> {
   }
 }
 
-async function insertLineAt(pageIndex: number, lineIndex: number, lineType: number): Promise<void> {
+function insertLineAt(pageIndex: number, lineIndex: number, lineType: number): void {
   const pageLines = scriptConfigStore.getTmpPage(pageIndex);
   if (pageLines.length - 1 === lineIndex) {
-    await addNewLine(lineType);
+    addNewLine(lineType);
     return;
   }
   const newLineIndex = lineIndex + 1;
@@ -579,10 +579,12 @@ function doneEditingLine(pageIndex: number, lineIndex: number): void {
  * (Done/Esc), which never adds anything — see ScriptLineEditor.vue's own emits. */
 function finishAndAddLine(pageIndex: number, lineIndex: number): void {
   doneEditingLine(pageIndex, lineIndex);
-  insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE).catch((err) => {
+  try {
+    insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
+  } catch (err) {
     log.error('Failed to add new line', err);
     toast.error('Unable to add a new line. Please try again.');
-  });
+  }
 }
 
 function navigateUp(pageIndex: number, lineIndex: number): void {
@@ -888,7 +890,7 @@ async function loadBoundaryLines(): Promise<void> {
       : (scriptConfigStore.getTmpPage(endPage + 1)[0] ?? null);
 }
 
-async function openSetCharacterDialog(): Promise<void> {
+function openSetCharacterDialog(): void {
   setCharDialog.value?.show();
 }
 

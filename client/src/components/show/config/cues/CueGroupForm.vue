@@ -168,7 +168,7 @@ const canSave = computed(
 );
 
 function parseRange(input: string): number[] | null {
-  const match = input.trim().match(/^(\d+)\s*>\s*(\d+)$/);
+  const match = /^(\d+)\s*>\s*(\d+)$/.exec(input.trim());
   if (!match) return null;
   const start = parseInt(match[1], 10);
   const end = parseInt(match[2], 10);

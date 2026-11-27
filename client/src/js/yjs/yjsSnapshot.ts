@@ -46,7 +46,7 @@ export function zeroToNull(value: number): number | null {
 }
 
 export function nullToZero(value: number | null | undefined): number {
-  return value == null ? 0 : value;
+  return value ?? 0;
 }
 
 /**

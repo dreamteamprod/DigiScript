@@ -154,13 +154,13 @@ type ToastFn = {
   info: (m: string) => void;
 };
 
-async function checkPermissionGuards(
+function checkPermissionGuards(
   to: RouteLocationNormalized,
   from: RouteLocationNormalized,
   systemStore: Awaited<ReturnType<typeof import('@/stores/system').useSystemStore>>,
   userStore: Awaited<ReturnType<typeof import('@/stores/user').useUserStore>>,
   toast: ToastFn
-): Promise<string | undefined> {
+): string | undefined {
   const settings = systemStore.settings as Record<string, unknown> | null;
   if (settings?.has_admin_user === false) {
     // /help is reachable pre-setup too, so the first-run screen's "See what's collected"
@@ -233,7 +233,7 @@ router.beforeEach(async (to, from) => {
     if (userStore.currentUser) await userStore.getCurrentRbac();
   }
 
-  const permResult = await checkPermissionGuards(to, from, systemStore, userStore, toast);
+  const permResult = checkPermissionGuards(to, from, systemStore, userStore, toast);
   if (permResult !== undefined) return permResult;
 
   if (to.path === '/live') return checkLiveGuard(toast);

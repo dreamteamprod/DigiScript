@@ -185,34 +185,21 @@ describe('applyTextDiff', () => {
 });
 
 describe('captureSelection / resolveSelection', () => {
-  it('keeps the caret on the same text when another editor types before it', () => {
+  it.each([
+    ['keeps the caret on the same text when another editor types before it', 'Oh, hello world', 9],
+    ['does not move the caret when another editor types after it', 'hello world!!', 5],
+    ['leaves the caret behind text another editor inserts exactly at it', 'hello,, world', 5],
+  ])('%s', (_name, remoteText, expectedCaret) => {
     const { a, b, textA, textB } = syncedDocs('hello world');
     const selection = captureSelection(textA, 5, 5); // after "hello"
 
-    applyTextDiff(textB, 'Oh, hello world', 'local-edit');
+    applyTextDiff(textB, remoteText, 'local-edit');
     sync(a, b);
 
-    expect(resolveSelection(textA, selection)).toEqual({ start: 9, end: 9 });
-  });
-
-  it('does not move the caret when another editor types after it', () => {
-    const { a, b, textA, textB } = syncedDocs('hello world');
-    const selection = captureSelection(textA, 5, 5);
-
-    applyTextDiff(textB, 'hello world!!', 'local-edit');
-    sync(a, b);
-
-    expect(resolveSelection(textA, selection)).toEqual({ start: 5, end: 5 });
-  });
-
-  it('leaves the caret behind text another editor inserts exactly at it', () => {
-    const { a, b, textA, textB } = syncedDocs('hello world');
-    const selection = captureSelection(textA, 5, 5);
-
-    applyTextDiff(textB, 'hello,, world', 'local-edit'); // inserted at index 5
-    sync(a, b);
-
-    expect(resolveSelection(textA, selection)).toEqual({ start: 5, end: 5 });
+    expect(resolveSelection(textA, selection)).toEqual({
+      start: expectedCaret,
+      end: expectedCaret,
+    });
   });
 
   it('follows a selection through edits on both sides of it', () => {

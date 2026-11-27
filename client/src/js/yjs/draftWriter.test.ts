@@ -115,7 +115,7 @@ describe('addLine', () => {
     expect(line.get('stage_direction_style_id')).toBe(9);
     const parts = line.get('parts') as Y.Array<Y.Map<unknown>>;
     expect(parts).toBeInstanceOf(Y.Array);
-    expect(parts.length).toBe(1);
+    expect(parts).toHaveLength(1);
     const part = parts.get(0);
     expect([...part.keys()].sort()).toEqual([
       '_id',
@@ -274,7 +274,7 @@ describe('deleteLine', () => {
 
     expect(deleteLine(doc, 1, '1')).toBe(true);
 
-    expect(doc.getArray('deleted_line_ids').length).toBe(0);
+    expect(doc.getArray('deleted_line_ids')).toHaveLength(0);
   });
 
   it('is one update', () => {
@@ -302,7 +302,7 @@ describe('deleteLine', () => {
     expect(deleteLine(doc, 1, 'nope')).toBe(false);
 
     expect(Y.encodeStateVector(doc)).toEqual(before);
-    expect(doc.getArray('deleted_line_ids').length).toBe(0);
+    expect(doc.getArray('deleted_line_ids')).toHaveLength(0);
   });
 
   it('throws for a page that does not exist', () => {
