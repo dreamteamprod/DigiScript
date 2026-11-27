@@ -42,7 +42,15 @@
           <div v-if="!hasData" class="text-center py-5 text-muted">
             No allocation data to display for this view
           </div>
-          <svg v-else ref="svgRef" :width="totalWidth" :height="totalHeight" class="timeline-svg">
+          <svg
+            v-else
+            ref="svgRef"
+            :width="totalWidth"
+            :height="totalHeight"
+            class="timeline-svg"
+            role="img"
+            aria-label="Stage items timeline by act and scene"
+          >
             <g class="act-labels" :transform="`translate(${margin.left},0)`">
               <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">
                 <rect

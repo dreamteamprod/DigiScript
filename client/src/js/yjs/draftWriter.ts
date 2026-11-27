@@ -148,7 +148,10 @@ function assertNotBoth(characterId: number | null, characterGroupId: number | nu
 }
 
 /** Line types that carry parts; cue and spacing lines must have none (the server rejects them). */
-const PART_LINE_TYPES: readonly LineType[] = [LINE_TYPES.DIALOGUE, LINE_TYPES.STAGE_DIRECTION];
+const PART_LINE_TYPES: ReadonlySet<LineType> = new Set([
+  LINE_TYPES.DIALOGUE,
+  LINE_TYPES.STAGE_DIRECTION,
+]);
 
 export interface NewLine {
   lineType: LineType;
@@ -181,7 +184,7 @@ export function addLine(
   { newId = defaultNewId }: WriteOptions = {}
 ): NewLineIds {
   const lineUid = newId() as LineUid;
-  const hasParts = PART_LINE_TYPES.includes(line.lineType);
+  const hasParts = PART_LINE_TYPES.has(line.lineType);
   if (line.part && !hasParts) {
     throw new DraftWriteError(`Line type ${line.lineType} cannot have parts`);
   }

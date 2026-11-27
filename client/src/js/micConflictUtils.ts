@@ -232,6 +232,13 @@ function buildConflictRecord(
   };
 }
 
+/** Read-only lookup data shared by every adjacent-scene check. */
+interface ConflictLookups {
+  sceneGraph: SceneGraphNode[];
+  characters: Character[];
+  castList: unknown[];
+}
+
 function checkAdjacentScene(
   conflicts: MicConflict[],
   micId: number,
@@ -239,9 +246,7 @@ function checkAdjacentScene(
   adjacentSceneId: number,
   characterId: number,
   micAllocations: Record<string, number | null>,
-  sceneGraph: SceneGraphNode[],
-  characters: Character[],
-  castList: unknown[]
+  { sceneGraph, characters, castList }: ConflictLookups
 ): void {
   const adjacentCharacterId = micAllocations[adjacentSceneId];
   if (adjacentCharacterId == null || adjacentCharacterId === characterId) return;
@@ -284,6 +289,8 @@ export function detectMicConflicts(
 
   const conflicts: MicConflict[] = [];
 
+  const lookups: ConflictLookups = { sceneGraph, characters, castList };
+
   Object.keys(allocations).forEach((micId) => {
     const micAllocations = allocations[micId];
     if (!micAllocations || typeof micAllocations !== 'object') return;
@@ -310,9 +317,7 @@ export function detectMicConflicts(
           adjacentSceneId,
           characterId,
           micAllocations,
-          sceneGraph,
-          characters,
-          castList
+          lookups
         );
       });
     });

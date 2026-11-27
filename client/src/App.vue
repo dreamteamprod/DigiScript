@@ -342,7 +342,7 @@ async function handleLogout(): Promise<void> {
   await userStore.logout();
 }
 
-async function goToLivePage(): Promise<void> {
+function goToLivePage(): void {
   if (!pageInputNo.value || pageInputNo.value < 1) return;
   sendObj({ OP: 'LIVE_SHOW_JUMP_TO_PAGE', DATA: { page: pageInputNo.value } });
   goToPageModal.value?.hide();

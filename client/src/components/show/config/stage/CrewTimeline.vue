@@ -20,7 +20,15 @@
           No crew assignments to display. Assign crew members to SET/STRIKE tasks in the Stage
           Manager tab.
         </div>
-        <svg v-else ref="svgRef" :width="totalWidth" :height="totalHeight" class="timeline-svg">
+        <svg
+          v-else
+          ref="svgRef"
+          :width="totalWidth"
+          :height="totalHeight"
+          class="timeline-svg"
+          role="img"
+          aria-label="Crew assignment timeline by act and scene"
+        >
           <g class="act-labels" :transform="`translate(${margin.left},0)`">
             <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">
               <rect
@@ -279,8 +287,7 @@ function buildBarsForScene(
       itemName,
       scene.name ?? null
     );
-    const itemId =
-      representative.prop_id == null ? (representative.scenery_id ?? 0) : representative.prop_id;
+    const itemId = representative.prop_id ?? representative.scenery_id ?? 0;
     bars.push({
       id: `crew-${rowId}-scene-${sceneId}-${stackIndex}`,
       x: getSceneX(sceneIndex),

@@ -544,16 +544,29 @@ interface PresenceEntry {
   openLineCount: number;
   subText: string;
 }
+const ROLE_VARIANTS: Record<PresenceEntry['role'], PresenceEntry['roleVariant']> = {
+  editor: 'warning',
+  cutting: 'info',
+  viewer: 'secondary',
+};
+const ROLE_BADGES: Record<PresenceEntry['role'], PresenceEntry['badge']> = {
+  editor: 'editing',
+  cutting: 'cutting',
+  viewer: null,
+};
+function resolvePresenceRole(
+  member: { role: PresenceEntry['role']; client_id: string | null },
+  cutterIds: Set<string>
+): PresenceEntry['role'] {
+  if (member.role === 'editor') return 'editor';
+  if (member.client_id && cutterIds.has(member.client_id)) return 'cutting';
+  return member.role;
+}
 const presenceEntries = computed<PresenceEntry[]>(() => {
   const cutterIds = new Set(scriptConfigStore.cutters.map((c) => c.internal_id));
   return draftStore.members.map((m, i) => {
     const isSelf = m.client_id !== null && m.client_id === wsStore.internalUUID;
-    const role: PresenceEntry['role'] =
-      m.role === 'editor'
-        ? 'editor'
-        : m.client_id && cutterIds.has(m.client_id)
-          ? 'cutting'
-          : m.role;
+    const role = resolvePresenceRole(m, cutterIds);
     const awareness = m.client_id ? draftStore.remoteAwareness[m.client_id] : undefined;
     const page = isSelf ? currentPage.value : (awareness?.currentPage ?? null);
     const openLineCount = isSelf ? editingLines.value.size : (awareness?.openLineUids.length ?? 0);
@@ -566,11 +579,11 @@ const presenceEntries = computed<PresenceEntry[]>(() => {
       clientId: m.client_id,
       username: m.username,
       role,
-      roleVariant: role === 'editor' ? 'warning' : role === 'cutting' ? 'info' : 'secondary',
+      roleVariant: ROLE_VARIANTS[role],
       isSelf,
       initials: presenceInitials(m.username),
       color: isSelf ? SELF_AVATAR_COLOR : presenceColor(m.username),
-      badge: role === 'editor' ? 'editing' : role === 'cutting' ? 'cutting' : null,
+      badge: ROLE_BADGES[role],
       title: `${m.username}${isSelf ? ' (you)' : ''}, ${role}`,
       page,
       openLineCount,

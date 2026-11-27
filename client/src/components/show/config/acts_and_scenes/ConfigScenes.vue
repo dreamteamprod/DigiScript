@@ -269,7 +269,7 @@ const noSceneLoops = helpers.withMessage(
     const visited = new Set<number>();
     visited.add(editFormState.value.scene_id ?? -1);
     let current = showStore.sceneById(value);
-    while (current != null && current.previous_scene != null) {
+    while (current?.previous_scene != null) {
       if (visited.has(current.previous_scene)) return false;
       current = showStore.sceneById(current.previous_scene);
     }

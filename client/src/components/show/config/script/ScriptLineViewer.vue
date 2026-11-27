@@ -259,8 +259,7 @@ const needsHeadings = computed<boolean[]>(() => {
   let prev = props.previousLine;
   let prevIdx = props.lineIndex - 1;
   while (
-    prev != null &&
-    prev.line_type === LINE_TYPES.STAGE_DIRECTION &&
+    prev?.line_type === LINE_TYPES.STAGE_DIRECTION &&
     prev.line_parts[0]?.character_id == null &&
     prev.line_parts[0]?.character_group_id == null
   ) {
