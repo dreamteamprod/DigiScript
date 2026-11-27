@@ -44,69 +44,81 @@ def _path_str(path) -> str:
     return "/".join(parts)
 
 
+def _clip(text: str, limit: int) -> str:
+    """Truncate *text* to *limit* characters, marking the cut with an ellipsis."""
+    return text[:limit] + "…" if len(text) > limit else text
+
+
+def _describe_value(val) -> str:
+    """Render a Y.Doc value compactly for a log line."""
+    if isinstance(val, (pycrdt.Map, pycrdt.Array)):
+        return f"<{type(val).__name__} len={len(val)}>"
+    if isinstance(val, pycrdt.Text):
+        return repr(_clip(str(val), 60))
+    if isinstance(val, str):
+        return repr(_clip(val, 60))
+    return repr(val)
+
+
+def _describe_key_change(target, key, info) -> tuple[str, str]:
+    """Describe one changed key of a ``MapEvent`` as ``(action, value string)``."""
+    action = info.get("action", "?") if isinstance(info, dict) else str(info)
+    try:
+        if target is not None and action != "delete":
+            val_str = _describe_value(target[key])
+        else:
+            old = info.get("oldValue", "?") if isinstance(info, dict) else "?"
+            val_str = f"<deleted, was {old!r}>"
+    except Exception as exc:
+        val_str = f"<read-error: {exc}>"
+    return action, val_str
+
+
+def _describe_delta_op(op: dict) -> str | None:
+    """Describe one delta operation, or ``None`` for an unrecognised op."""
+    if "insert" in op:
+        ins = op["insert"]
+        if isinstance(ins, str):
+            return f"insert {_clip(ins, 40)!r}"
+        if isinstance(ins, list):
+            return f"insert {len(ins)} item(s)"
+        return f"insert {ins!r}"
+    if "delete" in op:
+        return f"delete {op['delete']}"
+    if "retain" in op:
+        return f"retain {op['retain']}"
+    return None
+
+
+def _summarise_event(event) -> list[str]:
+    """Convert one pycrdt deep-observer event into readable strings."""
+    lines = []
+    target = getattr(event, "target", None)
+    target_type = type(target).__name__ if target is not None else "?"
+    path = _path_str(getattr(event, "path", None) or [])
+
+    keys_changed = getattr(event, "keys", None)
+    if keys_changed is not None:
+        for key, info in keys_changed.items():
+            action, val_str = _describe_key_change(target, key, info)
+            lines.append(f"{target_type}[{key!r}] {action} = {val_str}  (path: {path})")
+
+    delta = getattr(event, "delta", None)
+    if delta is not None:
+        parts = [d for d in map(_describe_delta_op, delta) if d is not None]
+        lines.append(
+            f"{target_type} delta: {', '.join(parts) or '(empty)'}  (path: {path})"
+        )
+    return lines
+
+
 def _summarise_events(events) -> list[str]:
     """Convert a list of pycrdt deep-observer events into readable strings.
 
     Handles ``MapEvent`` (``keys`` dict), ``ArrayEvent`` and ``TextEvent``
     (``delta`` list).  Truncates long string values so logs stay readable.
     """
-    lines = []
-    for event in events:
-        target = getattr(event, "target", None)
-        target_type = type(target).__name__ if target is not None else "?"
-        path = _path_str(getattr(event, "path", None) or [])
-
-        keys_changed = getattr(event, "keys", None)
-        if keys_changed is not None:
-            for key, info in keys_changed.items():
-                action = (
-                    info.get("action", "?") if isinstance(info, dict) else str(info)
-                )
-                try:
-                    if target is not None and action != "delete":
-                        val = target[key]
-                        if isinstance(val, (pycrdt.Map, pycrdt.Array)):
-                            val_str = f"<{type(val).__name__} len={len(val)}>"
-                        elif isinstance(val, pycrdt.Text):
-                            txt = str(val)
-                            val_str = repr(txt[:60] + "…" if len(txt) > 60 else txt)
-                        elif isinstance(val, str) and len(val) > 60:
-                            val_str = repr(val[:60] + "…")
-                        else:
-                            val_str = repr(val)
-                    else:
-                        old = (
-                            info.get("oldValue", "?") if isinstance(info, dict) else "?"
-                        )
-                        val_str = f"<deleted, was {old!r}>"
-                except Exception as exc:
-                    val_str = f"<read-error: {exc}>"
-                lines.append(
-                    f"{target_type}[{key!r}] {action} = {val_str}  (path: {path})"
-                )
-
-        delta = getattr(event, "delta", None)
-        if delta is not None:
-            parts = []
-            for op in delta:
-                if "insert" in op:
-                    ins = op["insert"]
-                    if isinstance(ins, str):
-                        snippet = repr(ins[:40] + "…" if len(ins) > 40 else ins)
-                        parts.append(f"insert {snippet}")
-                    elif isinstance(ins, list):
-                        parts.append(f"insert {len(ins)} item(s)")
-                    else:
-                        parts.append(f"insert {ins!r}")
-                elif "delete" in op:
-                    parts.append(f"delete {op['delete']}")
-                elif "retain" in op:
-                    parts.append(f"retain {op['retain']}")
-            lines.append(
-                f"{target_type} delta: {', '.join(parts) or '(empty)'}  (path: {path})"
-            )
-
-    return lines
+    return [line for event in events for line in _summarise_event(event)]
 
 
 def make_pages_observer(revision_id: int):
