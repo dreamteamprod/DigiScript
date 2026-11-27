@@ -25,7 +25,7 @@ vi.mock('@/composables/useWebSocket', () => ({
   useWebSocket: () => ({ sendObj, connect: vi.fn() }),
 }));
 vi.mock('@/js/toast', () => ({
-  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn() },
+  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
 const confirmMock = vi.fn().mockResolvedValue(true);
 vi.mock('@/composables/useConfirm', () => ({
@@ -1980,6 +1980,11 @@ describe('CollabScriptEditor', () => {
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
       expect(page1[1]!.parts[0]?.character_id).toBe(7);
+      // The partless line is reported rather than silently dropped.
+      const { toast } = await import('@/js/toast');
+      expect(toast.warning).toHaveBeenCalledWith(
+        '1 selected line has no part 1, so it was skipped.'
+      );
     });
 
     it('onMoveToSceneApply applies act/scene and clears the selection', async () => {
@@ -2217,23 +2222,45 @@ describe('CollabScriptEditor', () => {
 
     it('re-enables Save Cuts if the save itself fails, rather than leaving it stuck disabled', async () => {
       const scriptStore = useScriptStore();
-      vi.spyOn(scriptStore, 'saveCuts').mockRejectedValue(new Error('network error'));
+      // The store toasts its own failure and resolves false rather than rejecting.
+      vi.spyOn(scriptStore, 'saveCuts').mockResolvedValue(false);
       const w = await mountEditor();
       await button(w, 'Cuts')!.trigger('click');
       await flushPromises();
       vm(w).cutLinePart(42);
       await flushPromises();
 
-      // Calls saveCuts() directly rather than through the DOM click — the production
-      // code deliberately has no catch (matching the reviewer's own suggested fix,
-      // which is try/finally only), so dispatching via a real click would leave the
-      // rejection unhandled in Vue's native event path.
-      await vm(w)
-        .saveCuts()
-        .catch(() => {});
+      await button(w, 'Save Cuts')!.trigger('click');
       await flushPromises();
 
       expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeUndefined();
+    });
+
+    it('keeps the pending cuts when the save fails, so the user can retry', async () => {
+      vi.spyOn(useScriptStore(), 'saveCuts').mockResolvedValue(false);
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      vm(w).cutLinePart(42);
+
+      await button(w, 'Save Cuts')!.trigger('click');
+      await flushPromises();
+
+      expect(button(w, 'Save Cuts')?.attributes('disabled')).toBeUndefined();
+    });
+
+    it('Stop Cutting stays in cut mode when the send fails, since the server still holds the slot', async () => {
+      const w = await mountEditor();
+      await button(w, 'Cuts')!.trigger('click');
+      await flushPromises();
+      sendObj.mockReturnValueOnce(false);
+
+      await button(w, 'Stop Cutting')!.trigger('click');
+      await flushPromises();
+
+      expect(useScriptConfigStore().cutMode).toBe(true);
+      const { toast } = await import('@/js/toast');
+      expect(toast.error).toHaveBeenCalledWith('Cannot stop cutting: not connected to the server');
     });
 
     it('toggling the same line part twice cancels the cut', async () => {

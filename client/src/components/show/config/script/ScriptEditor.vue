@@ -643,10 +643,14 @@ function cutLinePart(linePartId: number): void {
 async function saveScript(): Promise<void> {
   if (scriptConfigStore.cutMode) {
     savingInProgress.value = true;
-    await scriptStore.saveCuts(linePartCuts.value);
-    linePartCuts.value = [...scriptStore.cuts];
-    setupAutoSave();
-    savingInProgress.value = false;
+    try {
+      if (await scriptStore.saveCuts(linePartCuts.value)) {
+        linePartCuts.value = [...scriptStore.cuts];
+      }
+    } finally {
+      setupAutoSave();
+      savingInProgress.value = false;
+    }
     return;
   }
 

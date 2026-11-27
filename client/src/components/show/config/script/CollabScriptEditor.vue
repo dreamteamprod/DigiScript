@@ -370,6 +370,7 @@ import { useDraftPages } from '@/composables/useDraftPages';
 import { useDraftWriter } from '@/composables/useDraftWriter';
 import { useAutoSave, autoSaveSettings } from '@/composables/useAutoSave';
 import { useConfirm } from '@/composables/useConfirm';
+import log from 'loglevel';
 import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
@@ -1073,7 +1074,8 @@ async function goToPage(): Promise<void> {
   try {
     await navigateTo(target);
     goToPageModal.value?.hide();
-  } catch {
+  } catch (error) {
+    log.error(`Failed to navigate to page ${target}`, error);
     pageError.value = 'Could not load that page — check the connection and try again.';
   } finally {
     changingPage.value = false;
@@ -1104,17 +1106,22 @@ async function stopCutting(): Promise<void> {
     );
     if (!ok) return;
   }
-  scriptConfigStore.setCutMode(false);
+  // Only leave cut mode once the server has been told: if the send fails the server
+  // still holds the cut slot, so flipping the UI first would strand us out of sync.
   if (!sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
     toast.error('Cannot stop cutting: not connected to the server');
+    return;
   }
+  scriptConfigStore.setCutMode(false);
 }
 
 async function saveCuts(): Promise<void> {
   cuttingSaveInProgress.value = true;
   try {
-    await scriptStore.saveCuts(linePartCuts.value);
-    linePartCuts.value = [...scriptStore.cuts];
+    // saveCuts() toasts its own failures; on failure keep the user's pending cuts.
+    if (await scriptStore.saveCuts(linePartCuts.value)) {
+      linePartCuts.value = [...scriptStore.cuts];
+    }
   } finally {
     cuttingSaveInProgress.value = false;
   }
@@ -1224,14 +1231,14 @@ function applyBulkCharacter(
   targetPartIndex: number,
   characterId: number | null,
   characterGroupId: number | null
-): void {
+): boolean {
   const sortedParts = [...line.line_parts].sort(
     (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
   );
   const targetPart = sortedParts[targetPartIndex];
-  if (targetPart) {
-    writer.setPartCharacter(page, line._uid, targetPart._uid, characterId, characterGroupId);
-  }
+  if (!targetPart) return false;
+  writer.setPartCharacter(page, line._uid, targetPart._uid, characterId, characterGroupId);
+  return true;
 }
 
 function openSetCharacterDialog(): void {
@@ -1259,6 +1266,7 @@ function applyToSelection(payload: BulkEditPayload): void {
   // transact() is reentrant: each writer call below opens its own transaction with
   // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
   // rather than committing separately — so the whole change reaches peers as one update.
+  let skippedLines = 0;
   writer.transact(() => {
     for (let i = bounds.startIndex; i <= bounds.endIndex; i += 1) {
       const line = draftLines.value[i];
@@ -1271,17 +1279,27 @@ function applyToSelection(payload: BulkEditPayload): void {
           payload.actScene.sceneId
         );
       }
-      if (character) {
-        applyBulkCharacter(
+      if (
+        character &&
+        !applyBulkCharacter(
           currentPage.value,
           line,
           character.targetPartIndex,
           character.characterId,
           character.characterGroupId
-        );
+        )
+      ) {
+        skippedLines += 1;
       }
     }
   });
+  if (skippedLines > 0) {
+    toast.warning(
+      `${skippedLines} selected ${skippedLines === 1 ? 'line has' : 'lines have'} no part ${
+        payload.assignee?.partIndex
+      }, so ${skippedLines === 1 ? 'it was' : 'they were'} skipped.`
+    );
+  }
 }
 
 function onSetCharacterApply(assignee: {
@@ -1462,20 +1480,28 @@ onMounted(async () => {
   window.addEventListener('resize', calculateNavbarHeight);
   calculateNavbarHeight();
 
-  await Promise.all([
-    showStore.getActList(),
-    showStore.getSceneList(),
-    showStore.getCharacterList(),
-    showStore.getCharacterGroupList(),
-    scriptStore.getStageDirectionStyles(),
-    scriptConfigStore.getScriptConfigStatus(),
-    scriptStore.getCuts(),
-  ]);
-  linePartCuts.value = [...scriptStore.cuts];
+  // A rejected load must not leave the page stuck on its loading state with no
+  // feedback: report it, then carry on so the editor still renders and can join the
+  // draft room (the draft itself supplies the editor's content).
+  try {
+    await Promise.all([
+      showStore.getActList(),
+      showStore.getSceneList(),
+      showStore.getCharacterList(),
+      showStore.getCharacterGroupList(),
+      scriptStore.getStageDirectionStyles(),
+      scriptConfigStore.getScriptConfigStatus(),
+      scriptStore.getCuts(),
+    ]);
+    linePartCuts.value = [...scriptStore.cuts];
 
-  const storedPage = Number.parseInt(localStorage.getItem('scriptEditPage') ?? '1', 10);
-  currentPage.value = Number.isInteger(storedPage) && storedPage > 0 ? storedPage : 1;
-  await loadViewerPage(currentPage.value);
+    const storedPage = Number.parseInt(localStorage.getItem('scriptEditPage') ?? '1', 10);
+    currentPage.value = Number.isInteger(storedPage) && storedPage > 0 ? storedPage : 1;
+    await loadViewerPage(currentPage.value);
+  } catch (error) {
+    log.error('Failed to load script editor data', error);
+    toast.error('Could not load all script data — try refreshing the page');
+  }
 
   loaded.value = true;
   // Join unconditionally (Phase 4 Step A) — the server decides editor vs viewer role

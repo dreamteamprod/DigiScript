@@ -297,17 +297,30 @@ export const useScriptStore = defineStore('script', {
       }
     },
 
-    async saveCuts(cuts: ScriptCut[]): Promise<void> {
-      const response = await fetch(makeURL('/api/v1/show/script/cuts'), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cuts }),
-      });
-      if (response.ok) {
+    /**
+     * Persist the given cuts. Never rejects: a non-OK response or a network failure is
+     * toasted here, and callers learn the outcome from the return value.
+     *
+     * @returns true if the cuts were saved, false if the save failed.
+     */
+    async saveCuts(cuts: ScriptCut[]): Promise<boolean> {
+      try {
+        const response = await fetch(makeURL('/api/v1/show/script/cuts'), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cuts }),
+        });
+        if (!response.ok) {
+          toast.error('Unable to save script cuts');
+          return false;
+        }
         await this.getCuts();
         toast.success('Saved script cuts!');
-      } else {
+        return true;
+      } catch (error) {
+        log.error('Unable to save script cuts', error);
         toast.error('Unable to save script cuts');
+        return false;
       }
     },
 
