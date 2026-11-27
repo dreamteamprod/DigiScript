@@ -529,11 +529,11 @@ test('inserts a line from the add-line divider and deletes it again', async () =
 
   await fillOpenLineEditor(page, { act: 'Act 1', scene: 'Scene 1' });
 
-  // Unscoped, like the classic editor's own equivalent E2E test: `div.row` nests
-  // (Bootstrap grid), so the "has a Done button" filter's first match can be an
-  // ancestor row that also wraps the (hidden) Stage Direction Styles tab's own Delete
-  // Line button, making a *scoped* lookup inside it ambiguous.
-  await page.locator('button.btn-danger:has-text("Delete Line")').first().click();
+  // Scoped to `.line-editor-card` (the open line's own card) rather than a `div.row`
+  // filter: `div.row` nests (Bootstrap grid), so its first "has a Done button" match can
+  // be an ancestor that also wraps the hidden Stage Direction Styles tab's own Delete
+  // Line button.
+  await page.locator('.line-editor-card').getByRole('button', { name: 'Delete Line' }).click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.script-line-row')).toHaveCount(rowCountBefore);
 
@@ -542,7 +542,7 @@ test('inserts a line from the add-line divider and deletes it again', async () =
     .filter({ hasText: 'A second line, so a divider exists' });
   await secondRow.hover();
   await secondRow.locator('.line-edit-trigger').click();
-  await page.locator('button.btn-danger:has-text("Delete Line")').first().click();
+  await page.locator('.line-editor-card').getByRole('button', { name: 'Delete Line' }).click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
 });
 
@@ -632,12 +632,16 @@ test('Set Character or Group applies a character across the selected lines', asy
   await row.hover();
   await row.getByRole('checkbox').click();
   await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+  // Docs screenshot (docs/pages/script_config.md, "Selecting Several Lines"): the
+  // selection bar, which script_collab_editing.png doesn't show.
+  await page.getByRole('toolbar', { name: 'Selected lines' }).scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: '../docs/images/config_show/script_collab_selection_bar.png',
+  });
 
   await page.click('button:has-text("Set Character or Group")');
   await waitForModal(page, 'Set Character or Group');
-  await page.locator('.modal.show select').filter({ hasText: 'Alice' }).selectOption({
-    label: 'Alice',
-  });
+  await page.getByTestId('set-character-select').selectOption({ label: 'Alice' });
   await confirmModal(page);
   await waitForModalClosed(page);
 

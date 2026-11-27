@@ -136,6 +136,16 @@ export async function fillOpenLineEditor(
     .locator('div.row')
     .filter({ has: page.locator('button:has-text("Done")') })
     .first();
+  // `count()` doesn't auto-wait, so checking for the act select straight away can race
+  // the card's own render and silently skip act/scene. The act select and the card's
+  // other controls render in the same pass, so once any control is present the act
+  // select's presence is settled. A card with no controls at all (e.g. a cue line that
+  // inherits its act/scene) has nothing to race, hence the swallowed timeout.
+  await lineEditor
+    .locator('select, input[type="text"]')
+    .first()
+    .waitFor({ timeout: 2_000 })
+    .catch(() => undefined);
   const actSelect = lineEditor.getByTestId('line-act-select');
   if ((await actSelect.count()) > 0) {
     await actSelect.selectOption({ label: act });
@@ -166,4 +176,27 @@ export async function addDialogueLine(
   await fillOpenLineEditor(page, fields);
   await page.locator('button:has-text("Done")').first().click();
   await page.waitForSelector('button:has-text("Done")', { state: 'hidden', timeout: 5_000 });
+}
+
+/**
+ * Selects exactly the script lines whose text matches `lineTexts`, in on-screen order
+ * (top to bottom, contiguous — the selection model only supports one contiguous block),
+ * by ticking each line's checkbox. Clears any selection left over from an earlier test
+ * first, so each test using it is self-contained rather than inheriting selection state.
+ */
+export async function selectLines(page: Page, lineTexts: string[]): Promise<void> {
+  const clear = page.getByRole('button', { name: 'Clear Selection' });
+  if (await clear.isVisible()) {
+    await clear.click();
+    await clear.waitFor({ state: 'hidden', timeout: 3_000 });
+  }
+  for (const text of lineTexts) {
+    const row = page.locator('.script-line-row').filter({ hasText: text });
+    await row.hover();
+    await row.getByRole('checkbox').click();
+  }
+  const expected = `${lineTexts.length} line${lineTexts.length === 1 ? '' : 's'} selected`;
+  await page.getByRole('toolbar', { name: 'Selected lines' }).getByText(expected).waitFor({
+    timeout: 5_000,
+  });
 }

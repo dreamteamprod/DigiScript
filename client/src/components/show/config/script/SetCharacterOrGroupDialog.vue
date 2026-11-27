@@ -32,6 +32,7 @@
         <BFormSelect
           id="set-char-input"
           v-model="selectedCharacterId"
+          data-testid="set-character-select"
           :options="characterOptions"
         />
       </BFormGroup>
