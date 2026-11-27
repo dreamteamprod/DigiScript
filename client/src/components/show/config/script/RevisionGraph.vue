@@ -282,6 +282,11 @@ watch(
     stroke-width 0.2s ease,
     filter 0.2s ease;
 }
+@media (prefers-reduced-motion: reduce) {
+  .revision-node {
+    transition: none;
+  }
+}
 .node-group:hover .revision-node {
   fill: #0056b3;
   stroke: #004085;

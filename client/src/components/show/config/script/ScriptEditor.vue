@@ -506,7 +506,7 @@ function addNewLine(lineType: number): void {
   }
 }
 
-async function insertLineAt(pageIndex: number, lineIndex: number, lineType: number): Promise<void> {
+function insertLineAt(pageIndex: number, lineIndex: number, lineType: number): void {
   const pageLines = scriptConfigStore.getTmpPage(pageIndex);
   if (pageLines.length - 1 === lineIndex) {
     addNewLine(lineType);
@@ -579,10 +579,12 @@ function doneEditingLine(pageIndex: number, lineIndex: number): void {
  * (Done/Esc), which never adds anything — see ScriptLineEditor.vue's own emits. */
 function finishAndAddLine(pageIndex: number, lineIndex: number): void {
   doneEditingLine(pageIndex, lineIndex);
-  insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE).catch((err) => {
+  try {
+    insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
+  } catch (err) {
     log.error('Failed to add new line', err);
     toast.error('Unable to add a new line. Please try again.');
-  });
+  }
 }
 
 function navigateUp(pageIndex: number, lineIndex: number): void {
