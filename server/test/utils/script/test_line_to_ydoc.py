@@ -5,6 +5,7 @@ and produces a pycrdt Y.Doc. No database needed — uses synthetic data.
 """
 
 import base64
+from unittest.mock import patch
 
 import pycrdt
 import pytest
@@ -286,6 +287,44 @@ class TestBuildYdocBrokenChain:
         assert len(page_lines) == 2
         assert page_lines[0]["_id"] == "1"
         assert page_lines[1]["_id"] == "2"
+
+    def test_dangling_next_pointer_logs_warning(self):
+        data = [
+            _make_line_data(line_id=1, next_line_id=999, previous_line_id=None),
+        ]
+        with patch("utils.script.line_to_ydoc.get_logger") as mock_get_logger:
+            build_ydoc(data, revision_id=7)
+
+        warning = mock_get_logger.return_value.warning.call_args[0][0]
+        assert "dangling next_line_id=999" in warning
+        assert "revision 7" in warning
+
+    def test_cycle_stops_traversal_and_logs_warning(self):
+        """A pointer cycle must not loop forever; each line appears once."""
+        data = [
+            _make_line_data(line_id=1, next_line_id=2, previous_line_id=None),
+            _make_line_data(line_id=2, next_line_id=1, previous_line_id=1),
+        ]
+        with patch("utils.script.line_to_ydoc.get_logger") as mock_get_logger:
+            doc = build_ydoc(data, revision_id=7)
+
+        pages = doc.get("pages", type=pycrdt.Map)
+        assert [line["_id"] for line in pages["1"]] == ["1", "2"]
+        warning = mock_get_logger.return_value.warning.call_args[0][0]
+        assert "cycle detected" in warning
+        assert "line_id=1" in warning
+
+    def test_no_head_line_builds_only_the_empty_trailing_page(self):
+        """With no line lacking a previous_line_id there is nowhere to start."""
+        data = [
+            _make_line_data(line_id=1, next_line_id=2, previous_line_id=2),
+            _make_line_data(line_id=2, next_line_id=1, previous_line_id=1),
+        ]
+        doc = build_ydoc(data, revision_id=1)
+
+        pages = doc.get("pages", type=pycrdt.Map)
+        assert numeric_page_keys(pages) == ["1"]
+        assert len(pages["1"]) == 0
 
     def test_broken_cross_page_link_stops_traversal(self):
         """Pages after a broken cross-page pointer are entirely absent from Y.Doc."""

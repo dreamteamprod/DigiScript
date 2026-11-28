@@ -25,6 +25,52 @@ from utils.web.web_decorators import (
 )
 
 
+def _parse_show_date(value, label: str) -> tuple[datetime | None, str | None]:
+    """Parse a date field from a new-show payload.
+
+    :returns: ``(date, None)`` on success, ``(None, error message)`` otherwise.
+    """
+    if not value:
+        return None, f"{label} date missing"
+    try:
+        return parser.parse(value), None
+    except Exception:
+        return None, f"Unable to parse {label.lower()} date value"
+
+
+def _parse_new_show(data: dict):
+    """Validate a new-show payload.
+
+    Checks fields in the order the API reports them: name, start, end, date order,
+    script mode.
+
+    :returns: ``((name, start_date, end_date, script_mode), None)`` on success, or
+        ``(None, error message)`` for the first problem found.
+    """
+    show_name = data.get("name", None)
+    if not show_name:
+        return None, "Show name missing"
+
+    start_date, error = _parse_show_date(data.get("start", None), "Start")
+    if error:
+        return None, error
+    end_date, error = _parse_show_date(data.get("end", None), "End")
+    if error:
+        return None, error
+    if start_date > end_date:
+        return None, "Start date must be before or the same as the end date"
+
+    script_mode_value = data.get("script_mode", None)
+    if not script_mode_value:
+        return None, "Script mode missing"
+    try:
+        script_mode = ShowScriptType(int(script_mode_value))
+    except (ValueError, KeyError):
+        return None, "Invalid script mode value"
+
+    return (show_name, start_date, end_date, script_mode), None
+
+
 @ApiRoute("show", ApiVersion.V1)
 class ShowController(BaseAPIController):
     @api_authenticated
@@ -36,63 +82,12 @@ class ShowController(BaseAPIController):
         data = escape.json_decode(self.request.body)
         get_logger().debug(f"New show data posted: {data}")
 
-        # Name
-        show_name = data.get("name", None)
-        if not show_name:
+        show_fields, error = _parse_new_show(data)
+        if error:
             self.set_status(400)
-            self.write({"message": "Show name missing"})
+            self.write({"message": error})
             return
-
-        # Start date
-        start_date = data.get("start", None)
-        if not start_date:
-            self.set_status(400)
-            self.write({"message": "Start date missing"})
-            return
-        try:
-            start_date = parser.parse(start_date)
-            if not start_date:
-                raise Exception
-        except BaseException:
-            self.set_status(400)
-            self.write({"message": "Unable to parse start date value"})
-            return
-
-        # End date
-        end_date = data.get("end", None)
-        if not end_date:
-            self.set_status(400)
-            self.write({"message": "End date missing"})
-            return
-        try:
-            end_date = parser.parse(end_date)
-            if not end_date:
-                raise Exception
-        except BaseException:
-            self.set_status(400)
-            self.write({"message": "Unable to parse end date value"})
-            return
-
-        if start_date > end_date or end_date < start_date:
-            self.set_status(400)
-            self.write(
-                {"message": "Start date must be before or the same as the end date"}
-            )
-            return
-
-        # Script mode (required)
-        script_mode_value = data.get("script_mode", None)
-        if not script_mode_value:
-            self.set_status(400)
-            self.write({"message": "Script mode missing"})
-            return
-
-        try:
-            script_mode = ShowScriptType(int(script_mode_value))
-        except (ValueError, KeyError):
-            self.set_status(400)
-            self.write({"message": "Invalid script mode value"})
-            return
+        show_name, start_date, end_date, script_mode = show_fields
 
         with self.make_session() as session:
             now_time = datetime.now(UTC)

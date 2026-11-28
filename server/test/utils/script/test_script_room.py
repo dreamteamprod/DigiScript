@@ -39,6 +39,7 @@ from utils.script_room_manager import (
     CHECKPOINT_INTERVAL,
     RoomManager,
     ScriptRoom,
+    _broadcast_to_room,
     _write_checkpoint_sync,
 )
 from utils.web import app_metrics
@@ -302,6 +303,27 @@ class TestScriptRoomBroadcast:
 
         # ws3 should still receive even though ws2 failed
         assert ws3.write_message.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_room_broadcast_helper_survives_a_failing_client(self):
+        """One client failing mid-broadcast must not stop the rest (save_room relies
+        on this for SCRIPT_SAVED and the ID-patch YJS_UPDATE)."""
+        room = _make_room()
+        ws1, ws2, ws3 = _make_mock_ws(), _make_mock_ws(), _make_mock_ws()
+        ws2.write_message.side_effect = Exception("Connection closed")
+        for ws in (ws1, ws2, ws3):
+            room.add_client(ws, "editor")
+        message = {"OP": "NOOP", "ACTION": "SCRIPT_SAVED", "DATA": {}}
+
+        with patch("utils.script_room_manager.get_logger") as mock_get_logger:
+            await _broadcast_to_room(room, message, "send failed")
+
+        ws1.write_message.assert_awaited_once_with(message)
+        ws2.write_message.assert_awaited_once_with(message)
+        ws3.write_message.assert_awaited_once_with(message)
+        mock_get_logger.return_value.warning.assert_called_once_with(
+            "send failed", exc_info=True
+        )
 
 
 class TestScriptRoomDirtyTracking:
