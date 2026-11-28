@@ -427,13 +427,17 @@ test('can change JWT Token Lifetime and submit successfully', async () => {
   // one retried step rather than asserting between the two.
   await expect(async () => {
     await select.selectOption({ label: '1 day' });
+    // Wait for this attempt's own PATCH to be answered rather than for a toast: the first
+    // Submit's "Saved settings" toast can still be on screen, and a retried attempt can add more.
+    const saved = page.waitForResponse(
+      (r) => r.request().method() === 'PATCH' && r.url().endsWith('/api/v1/settings') && r.ok(),
+      { timeout: 5_000 }
+    );
+    saved.catch(() => {}); // a failed attempt is retried; don't leave its rejection unhandled
     await page.locator('button:has-text("Submit")').click({ timeout: 5_000 });
+    await saved;
   }).toPass({ timeout: 30_000 });
-  // Reloading before the PATCH has been answered could abort it, so wait for the save toast
-  // (it only appears once the response arrives) and then for it to clear.
-  await expect(page.locator('.v-toast__item:has-text("Saved settings")')).toBeVisible({
-    timeout: 10_000,
-  });
+  // Let the toasts clear so nothing leaks into the next test.
   await expect(page.locator('.v-toast__item')).toHaveCount(0, { timeout: 15_000 });
 
   // The restore must really have been saved: later specs assume the default lifetime.

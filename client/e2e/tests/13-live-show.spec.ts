@@ -74,7 +74,7 @@ test.beforeAll(async ({ browser, request }) => {
 test.afterAll(async ({ request }) => {
   // Independent steps: beforeAll may have failed part way, and a failed attempt may have left
   // the stage plan undeletable (e.g. a session still live). None of that may stop the other
-  // steps running or replace the test's own failure; the first cleanup error is rethrown last.
+  // steps running or replace the test's own failure; all cleanup errors are rethrown last.
   const failures: unknown[] = [];
   const attempt = async (step: () => Promise<unknown>) => {
     try {
@@ -92,7 +92,8 @@ test.afterAll(async ({ request }) => {
     const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
     await deleteUserByUsername(request, adminToken, FOLLOWER_USERNAME);
   });
-  if (failures.length > 0) throw failures[0];
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) throw new AggregateError(failures, 'afterAll cleanup failed');
 });
 
 // ── Session lifecycle ──────────────────────────────────────────────────────

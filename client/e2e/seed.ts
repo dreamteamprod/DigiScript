@@ -93,12 +93,16 @@ export async function seedStagePlan(api: ShowApi): Promise<StagePlan> {
   try {
     await buildStagePlan(api, plan);
   } catch (error) {
-    // Don't strand a half-built plan in the database for later specs, but never let a failed
-    // rollback replace the error that explains why the build failed.
+    // Don't strand a half-built plan in the database for later specs. If the rollback fails
+    // too, report both errors: the build failure is the one that explains what went wrong.
     try {
       await removeStagePlan(api, plan);
     } catch (cleanupError) {
-      console.warn('seedStagePlan: rollback failed', cleanupError);
+      throw new AggregateError(
+        [error, cleanupError],
+        'seedStagePlan failed, and so did rolling it back (the first error is the build failure)',
+        { cause: cleanupError }
+      );
     }
     throw error;
   }
