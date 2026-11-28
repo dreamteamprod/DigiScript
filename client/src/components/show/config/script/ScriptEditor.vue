@@ -587,6 +587,11 @@ function finishAndAddLine(pageIndex: number, lineIndex: number): void {
   }
 }
 
+/** Up/Down close the current line without validating it, unlike Esc/Enter. That is
+ * intentional: arrow keys are navigation, not "I'm finished with this line", and
+ * blocking them on a half-filled line would trap the keyboard user. Nothing is lost
+ * or committed invalid — the line stays in the temp script and `firstInvalidLine`
+ * disables Save (naming the offending line) until it's fixed. */
 function navigateUp(pageIndex: number, lineIndex: number): void {
   const deletedOnPage = scriptConfigStore.getDeletedLines(pageIndex);
   let target = lineIndex - 1;

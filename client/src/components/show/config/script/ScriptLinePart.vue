@@ -46,8 +46,8 @@
           :state="lineTextState"
           @update:model-value="onStateChange"
           @keydown.enter="handleEnterPress"
-          @keydown.up="$emit('navigate-up')"
-          @keydown.down="$emit('navigate-down')"
+          @keydown.up="handleArrowPress($event, 'navigate-up')"
+          @keydown.down="handleArrowPress($event, 'navigate-down')"
         />
       </BFormGroup>
     </BCol>
@@ -242,6 +242,14 @@ function handleEnterPress(event: KeyboardEvent): void {
   if (event.isComposing) return;
   v$.value.$touch();
   emit('try-finish-line');
+}
+
+/** Up/Down move between lines. Like Enter, they're ignored mid-IME-composition: the
+ * IME uses them to move through its candidate list, and closing the line would
+ * abandon the composition. */
+function handleArrowPress(event: KeyboardEvent, direction: 'navigate-up' | 'navigate-down'): void {
+  if (event.isComposing) return;
+  emit(direction);
 }
 
 onMounted(() => {
