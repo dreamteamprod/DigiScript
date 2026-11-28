@@ -1,5 +1,10 @@
 <template>
-  <div ref="lineContainer" style="margin: 0; padding: 0 0 0.2rem">
+  <div
+    ref="lineContainer"
+    :data-line-id="line.id"
+    :class="{ 'jump-highlight': highlightLineId != null && highlightLineId === line.id }"
+    style="margin: 0; padding: 0 0 0.2rem"
+  >
     <!-- Act/scene heading -->
     <BContainer v-if="needsActSceneLabelValue" fluid class="mx-0" style="margin: 0; padding: 0">
       <BRow>
@@ -16,50 +21,58 @@
         class="line-row"
         :class="{
           'stage-direction': line.line_type === LINE_TYPES.STAGE_DIRECTION,
+          'line-row-open': cardHere,
         }"
       >
         <!-- Cue column -->
         <BCol cols="3" class="cue-column">
           <template v-if="line.line_type !== LINE_TYPES.SPACING">
-            <BButtonGroup>
+            <div class="cue-buttons">
               <template
-                v-for="slot in mergedCueSlots"
+                v-for="slot in visibleCueSlots"
                 :key="slot.type === 'individual' ? slot.cue.id : `group_${slot.group.id}`"
               >
-                <BButton
+                <button
                   v-if="slot.type === 'individual'"
-                  class="cue-button"
-                  :disabled="!systemStore.isCueEditor"
+                  type="button"
+                  class="btn cue-button"
+                  :class="{ 'cue-selected': isOpenCue(slot.cue.id) }"
+                  :data-cue-id="slot.cue.id"
                   :style="{
                     backgroundColor: cueBackgroundColour(slot.cue),
                     color: contrastColor(cueBackgroundColour(slot.cue)),
                   }"
-                  @click.stop="openEditForm(slot.cue)"
+                  @click.stop="openCue(slot.cue, $event)"
                 >
                   {{ cueLabel(slot.cue) }}
-                </BButton>
-                <BButton
+                </button>
+                <button
                   v-else
-                  class="cue-button cue-group-btn"
-                  :disabled="!systemStore.isCueEditor"
+                  type="button"
+                  class="btn cue-button cue-group-btn"
+                  :class="{ 'cue-selected': isOpenGroup(slot.group.id) }"
+                  :data-group-id="slot.group.id"
                   :style="{
                     backgroundColor: cueGroupBackgroundColour(slot.group),
                     color: contrastColor(cueGroupBackgroundColour(slot.group)),
                   }"
-                  @click.stop="openEditGroup(slot.group, slot.cues)"
+                  @click.stop="openGroup(slot.group, $event)"
                 >
                   {{ cueGroupLabel(slot.group, slot.cues) }}
-                </BButton>
+                </button>
               </template>
-              <BButton
-                v-if="systemStore.isCueEditor"
-                class="cue-button add-cue-btn"
-                :disabled="isLineCut"
-                @click.stop="openNewForm"
+              <span v-if="canAdd && isLineCut" class="line-cut-note">Line cut</span>
+              <button
+                v-if="canAdd"
+                type="button"
+                class="btn cue-button add-cue-btn"
+                :disabled="isLineCut || addOpen"
+                :aria-label="addLabel"
+                @click.stop="openAdd($event)"
               >
-                <IMdiPlusBox style="color: #06bc8c" />
-              </BButton>
-            </BButtonGroup>
+                {{ addOpen ? 'Adding…' : '+ Cue' }}
+              </button>
+            </div>
           </template>
         </BCol>
 
@@ -138,227 +151,143 @@
           </BCol>
         </template>
       </BRow>
+
+      <!-- Card for this line, under it in the script column -->
+      <BRow v-if="cardHere && cardKind">
+        <BCol cols="3" />
+        <BCol>
+          <CueCard
+            v-if="cardKind === 'add' && addMode === 'single'"
+            v-model:type-id="addTypeId"
+            mode="add"
+            :line="line"
+            :line-label="lineLabel"
+            @cancel="emit('close-card')"
+            @done="emit('close-card')"
+            @added="(typeId, stay) => emit('added', typeId, stay)"
+            @switch-group="addMode = 'group'"
+            @busy="(value) => (cardBusy = value)"
+          />
+          <CueGroupCard
+            v-else-if="cardKind === 'add'"
+            v-model:type-id="addTypeId"
+            mode="add"
+            :line="line"
+            :line-label="lineLabel"
+            @cancel="emit('cancel-card')"
+            @done="emit('close-card')"
+            @added="(typeId) => emit('added', typeId, false)"
+            @switch-single="switchToSingle"
+            @dirty="(value) => emit('dirty', value)"
+            @busy="(value) => (cardBusy = value)"
+          />
+          <CueCard
+            v-else-if="cardKind === 'edit-cue' && shownCue"
+            :key="`edit_${shownCue.id}`"
+            mode="edit"
+            :line="line"
+            :line-label="lineLabel"
+            :cue="shownCue"
+            :type-id="null"
+            @cancel="emit('close-card')"
+            @done="emit('close-card')"
+            @busy="(value) => (cardBusy = value)"
+          />
+          <CueCard
+            v-else-if="cardKind === 'view' && targetCue"
+            mode="view"
+            :line="line"
+            :line-label="lineLabel"
+            :cue="targetCue"
+            :group-label="viewGroupLabel"
+            :type-id="null"
+          />
+          <CueGroupCard
+            v-else-if="cardKind === 'edit-group' && shownGroup"
+            :key="`group_${shownGroup.group.id}`"
+            mode="edit"
+            :line="line"
+            :line-label="lineLabel"
+            :group="shownGroup.group"
+            :group-cues="shownGroup.cues"
+            :type-id="null"
+            @cancel="emit('cancel-card')"
+            @done="emit('close-card')"
+            @dirty="(value) => emit('dirty', value)"
+            @busy="(value) => (cardBusy = value)"
+          />
+        </BCol>
+      </BRow>
     </BContainer>
-
-    <!-- Add Cue Modal (tabs: Individual Cue / Cue Group) -->
-    <BModal ref="newCueModal" title="Add Cue" scrollable @hidden="resetNewForm">
-      <BTabs v-model:index="activeTab" class="mt-1">
-        <BTab title="Individual Cue">
-          <BForm class="mt-3" @submit.stop.prevent="onSubmitNew">
-            <BFormGroup label="Cue Type" label-for="new-cue-type">
-              <BFormSelect
-                id="new-cue-type"
-                v-model="v$.newFormState.cueType.$model"
-                :options="cueTypeOptions"
-                :state="newFieldState('cueType')"
-              />
-              <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
-            </BFormGroup>
-            <BFormGroup label="Identifier" label-for="new-cue-ident">
-              <BFormInput
-                id="new-cue-ident"
-                v-model="v$.newFormState.ident.$model"
-                :state="newFieldState('ident')"
-              />
-              <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
-              <BFormText v-if="isDuplicateNewCue" class="text-warning">
-                A cue with this identifier already exists for this cue type.
-              </BFormText>
-            </BFormGroup>
-            <!-- Line preview -->
-            <template
-              v-if="
-                line.line_type === LINE_TYPES.DIALOGUE ||
-                line.line_type === LINE_TYPES.STAGE_DIRECTION
-              "
-            >
-              <hr />
-              <template v-if="line.line_type === LINE_TYPES.DIALOGUE">
-                <p v-for="part in line.line_parts" :key="part.id" class="viewable-line">
-                  {{ part.line_text }}
-                </p>
-              </template>
-              <i v-else class="viewable-line">{{ line.line_parts[0]?.line_text }}</i>
-            </template>
-          </BForm>
-        </BTab>
-        <BTab title="Cue Group">
-          <CueGroupForm
-            ref="newGroupForm"
-            :cue-type-options="cueTypeOptions"
-            class="mt-3"
-            @update:valid="groupFormValid = $event"
-          />
-        </BTab>
-      </BTabs>
-      <template #footer>
-        <BButton variant="secondary" @click="newCueModal?.hide()">Cancel</BButton>
-        <template v-if="activeTab === 0">
-          <BButton
-            variant="primary"
-            :disabled="v$.newFormState.$invalid || submittingNewCue"
-            @click="onSubmitNew"
-          >
-            {{ submittingNewCue ? 'Adding…' : 'Add Cue' }}
-          </BButton>
-        </template>
-        <template v-else>
-          <BButton
-            variant="primary"
-            :disabled="!groupFormValid || submittingGroup"
-            @click="onSubmitGroup"
-          >
-            {{ submittingGroup ? 'Saving…' : 'Save Group' }}
-          </BButton>
-        </template>
-      </template>
-    </BModal>
-
-    <!-- Cue Group Modal (create + edit) -->
-    <CueGroupEditModal ref="groupModal" :cue-type-options="cueTypeOptions" />
-
-    <!-- Edit Cue Modal -->
-    <BModal
-      ref="editCueModal"
-      title="Edit Cue"
-      :ok-disabled="v$.editFormState.$invalid || submittingEditCue"
-      @hidden="resetEditForm"
-      @ok="onSubmitEdit"
-    >
-      <template #footer>
-        <BButton
-          variant="secondary"
-          :disabled="submittingEditCue || deletingCue"
-          @click="editCueModal?.hide()"
-        >
-          Cancel
-        </BButton>
-        <BButton variant="danger" :disabled="submittingEditCue || deletingCue" @click="deleteCue">
-          Delete
-        </BButton>
-        <BButton
-          variant="primary"
-          :disabled="v$.editFormState.$invalid || submittingEditCue || deletingCue"
-          @click="onSubmitEdit"
-        >
-          Save
-        </BButton>
-      </template>
-      <BForm @submit.stop.prevent="onSubmitEdit">
-        <BFormGroup label="Cue Type" label-for="edit-cue-type">
-          <BFormSelect
-            id="edit-cue-type"
-            v-model="v$.editFormState.cueType.$model"
-            :options="cueTypeOptions"
-            :state="editFieldState('cueType')"
-          />
-          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
-        </BFormGroup>
-        <BFormGroup label="Identifier" label-for="edit-cue-ident">
-          <BFormInput
-            id="edit-cue-ident"
-            v-model="v$.editFormState.ident.$model"
-            :state="editFieldState('ident')"
-          />
-          <BFormInvalidFeedback>This is a required field.</BFormInvalidFeedback>
-          <BFormText v-if="isDuplicateEditCue" class="text-warning">
-            A cue with this identifier already exists for this cue type.
-          </BFormText>
-        </BFormGroup>
-      </BForm>
-    </BModal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import type { BModal } from 'bootstrap-vue-next';
-import { useVuelidate } from '@vuelidate/core';
-import { required } from '@vuelidate/validators';
+import { computed, ref, watch } from 'vue';
+import CueCard from '@/components/show/config/cues/CueCard.vue';
+import CueGroupCard from '@/components/show/config/cues/CueGroupCard.vue';
 import { useScriptDisplay } from '@/composables/useScriptDisplay';
 import { useCueDisplay } from '@/composables/useCueDisplay';
+import { useCuePermissions } from '@/composables/useCuePermissions';
 import { useScriptNavigation } from '@/composables/useScriptNavigation';
 import { useScriptStore } from '@/stores/script';
-import { useShowStore } from '@/stores/show';
-import { useSystemStore } from '@/stores/system';
 import { useUserStore } from '@/stores/user';
-import { useConfirm } from '@/composables/useConfirm';
 import { isWholeLineCut } from '@/js/scriptUtils';
 import { LINE_TYPES } from '@/constants/lineTypes';
 import type { ScriptLine } from '@/types/api/script';
 import type { Cue, CueGroup, CueType } from '@/types/api/cues';
 import type { Act, Scene, Character, CharacterGroup } from '@/types/api/show';
-import CueGroupEditModal from './CueGroupEditModal.vue';
-import CueGroupForm from './CueGroupForm.vue';
+import type { ActiveCueCard } from '@/types/cueCard';
 
-const props = defineProps<{
-  line: ScriptLine;
-  lineIndex: number;
-  previousLine: ScriptLine | null;
-  acts: Act[];
-  scenes: Scene[];
-  characters: Character[];
-  characterGroups: CharacterGroup[];
-  cues: Cue[];
-  cueTypes: CueType[];
-  cuts: (number | null)[];
+const props = withDefaults(
+  defineProps<{
+    line: ScriptLine;
+    lineIndex: number;
+    previousLine: ScriptLine | null;
+    acts: Act[];
+    scenes: Scene[];
+    characters: Character[];
+    characterGroups: CharacterGroup[];
+    cues: Cue[];
+    cueTypes: CueType[];
+    cuts: (number | null)[];
+    activeCard?: ActiveCueCard | null;
+    /** Show only this cue type's cues and groups; null shows all. */
+    filterTypeId?: number | null;
+    /** The line a find just jumped to, marked briefly. */
+    highlightLineId?: number | null;
+  }>(),
+  { activeCard: null, filterTypeId: null, highlightLineId: null }
+);
+
+const emit = defineEmits<{
+  /** Open a card; `opener` is the control to give focus back to afterwards. */
+  open: [card: ActiveCueCard, opener: HTMLElement | null];
+  /** Close the card (done or cancelled with nothing to lose). */
+  'close-card': [];
+  /** Cancel asked for; the page decides whether changes need confirming. */
+  'cancel-card': [];
+  /** A cue was added; `stay` when the card stays open. */
+  added: [typeId: number, stay: boolean];
+  /** Whether the open group card has unsaved changes. */
+  dirty: [value: boolean];
+  /** The cue or group being edited no longer exists. */
+  'target-gone': [];
 }>();
 
 const scriptStore = useScriptStore();
-const showStore = useShowStore();
-const systemStore = useSystemStore();
 const userStore = useUserStore();
-const { confirm } = useConfirm();
 
 const { getStageDirectionStyle, stageDirectionStyling, scriptTextAlign } = useScriptDisplay();
 const { cueLabel, cueBackgroundColour, cueGroupLabel, cueGroupBackgroundColour, contrastColor } =
   useCueDisplay();
 const { needsHeadings, needsActSceneLabel } = useScriptNavigation();
+const { canWriteType, canAddCues } = useCuePermissions();
 
-// Modal refs
-const newCueModal = ref<InstanceType<typeof BModal> | null>(null);
-const editCueModal = ref<InstanceType<typeof BModal> | null>(null);
-const groupModal = ref<InstanceType<typeof CueGroupEditModal> | null>(null);
-const newGroupForm = ref<InstanceType<typeof CueGroupForm> | null>(null);
 const lineContainer = ref<HTMLElement | null>(null);
 
-// Form state
-const newFormState = ref({
-  cueType: null as number | null,
-  ident: null as string | null,
-  lineId: null as number | null,
-});
-const editFormState = ref({
-  cueId: null as number | null,
-  cueType: null as number | null,
-  ident: null as string | null,
-  lineId: null as number | null,
-});
-const activeTab = ref(0);
-const groupFormValid = ref(false);
-const submittingNewCue = ref(false);
-const submittingGroup = ref(false);
-const submittingEditCue = ref(false);
-const deletingCue = ref(false);
+// ── Display ─────────────────────────────────────────────────────────────────
 
-const newRules = {
-  newFormState: {
-    cueType: { required },
-    ident: { required },
-    lineId: { required },
-  },
-};
-const editRules = {
-  editFormState: {
-    cueId: { required },
-    cueType: { required },
-    ident: { required },
-    lineId: { required },
-  },
-};
-const v$ = useVuelidate({ ...newRules, ...editRules }, { newFormState, editFormState });
-
-// Computed display values
 const sdStyle = computed(() =>
   getStageDirectionStyle(
     props.line,
@@ -414,171 +343,188 @@ const sceneLabel = computed(
 
 const isLineCut = computed(() => isWholeLineCut(props.line, props.cuts));
 
+/** The start of the line's text: how the interface says which line it means. */
+const lineLabel = computed(() => {
+  const text =
+    props.line.line_type === LINE_TYPES.CUE_LINE
+      ? 'Cue Line'
+      : props.line.line_parts
+          .map((p) => p.line_text ?? '')
+          .join(' ')
+          .trim();
+  return text.length > 40 ? `${text.slice(0, 40).trimEnd()}…` : text || 'this line';
+});
+const addLabel = computed(() =>
+  isLineCut.value ? 'Add a cue (this line is cut)' : `Add a cue: ${lineLabel.value}`
+);
+
+// ── Cues on this line ───────────────────────────────────────────────────────
+
 const mergedCueSlots = computed(() => scriptStore.groupedCuesForLine(props.line.id).merged);
 
-// RBAC-filtered cue type options: admins see all, others only see types they can write
-const cueTypeOptions = computed(() => {
-  const base = [{ value: null, text: 'N/A' }];
-  if (systemStore.isAdminUser) {
-    return [
-      ...base,
-      ...props.cueTypes.map((t) => ({
-        value: t.id,
-        text: `${t.prefix}: ${t.description ?? ''}`,
-      })),
-    ];
+/** The type filter hides other types' cues and groups. */
+const visibleCueSlots = computed(() =>
+  props.filterTypeId == null
+    ? mergedCueSlots.value
+    : mergedCueSlots.value.filter((slot) =>
+        slot.type === 'individual'
+          ? slot.cue.cue_type_id === props.filterTypeId
+          : slot.group.cue_type_id === props.filterTypeId
+      )
+);
+
+const canAdd = computed(() => canAddCues.value);
+
+// ── Cards ───────────────────────────────────────────────────────────────────
+
+const cardHere = computed(() => props.activeCard?.lineId === props.line.id);
+const cardKind = computed(() => (cardHere.value ? props.activeCard!.kind : null));
+const addOpen = computed(() => cardKind.value === 'add');
+
+const addMode = ref<'single' | 'group'>('single');
+const addTypeId = ref<number | null>(null);
+
+function defaultAddType(): number | null {
+  const writable = props.cueTypes.filter((t) => canWriteType(t.id));
+  if (props.filterTypeId != null && canWriteType(props.filterTypeId)) return props.filterTypeId;
+  try {
+    const remembered = Number(localStorage.getItem('cueEditType'));
+    if (remembered && writable.some((t) => t.id === remembered)) return remembered;
+  } catch {
+    // Storage can be unavailable; remembering the type is only a convenience.
   }
-  const writeMask = systemStore.rbacRoles.find((r) => r.key === 'WRITE')?.value ?? 0;
-  const writableIds = new Set(
-    (userStore.currentRbac?.cuetypes ?? []).filter((x) => (x[1] & writeMask) !== 0).map((x) => x[0])
+  return writable.length === 1 ? writable[0].id : null;
+}
+
+// Each time an add card opens on this line it starts as a single cue with the default type.
+watch(
+  addOpen,
+  (open) => {
+    if (open) {
+      addMode.value = 'single';
+      addTypeId.value = defaultAddType();
+    }
+  },
+  { immediate: true }
+);
+
+const targetCue = computed<Cue | null>(() => {
+  if (!cardHere.value || props.activeCard?.cueId == null) return null;
+  return (
+    scriptStore.cuesForLine(props.line.id).find((c) => c.id === props.activeCard!.cueId) ?? null
   );
-  return [
-    ...base,
-    ...props.cueTypes
-      .filter((t) => writableIds.has(t.id))
-      .map((t) => ({ value: t.id, text: `${t.prefix}: ${t.description ?? ''}` })),
-  ];
 });
 
-// Duplicate detection across all cues
-const flatCues = computed(() => Object.values(scriptStore.cues).flat());
+const targetGroup = computed(() => {
+  if (!cardHere.value || props.activeCard?.groupId == null) return null;
+  return (
+    scriptStore
+      .groupedCuesForLine(props.line.id)
+      .groups.find((g) => g.group.id === props.activeCard!.groupId) ?? null
+  );
+});
 
-const isDuplicateNewCue = computed(
-  () =>
-    newFormState.value.cueType != null &&
-    newFormState.value.ident != null &&
-    flatCues.value.some(
-      (c) => c.cue_type_id === newFormState.value.cueType && c.ident === newFormState.value.ident
-    )
+// True while the open card is itself saving or deleting. The reload that follows removes or
+// replaces what it was showing, which is not "someone else" changing it.
+const cardBusy = ref(false);
+// A card that goes away mid-request must not leave the next one thinking it is busy.
+watch(
+  () => cardHere.value,
+  (open) => {
+    if (!open) {
+      cardBusy.value = false;
+      cueSnapshot.value = null;
+      groupSnapshot.value = null;
+    }
+  }
 );
 
-const isDuplicateEditCue = computed(
-  () =>
-    editFormState.value.cueType != null &&
-    editFormState.value.ident != null &&
-    flatCues.value.some(
-      (c) =>
-        c.cue_type_id === editFormState.value.cueType &&
-        c.ident === editFormState.value.ident &&
-        c.id !== editFormState.value.cueId
-    )
+// While the card is saving or deleting, the reload removes (or replaces) the very cue or group
+// it shows. Keep showing the last one it had, so the card stays mounted to finish and close.
+const cueSnapshot = ref<Cue | null>(null);
+const groupSnapshot = ref<typeof targetGroup.value>(null);
+watch(
+  targetCue,
+  (value) => {
+    if (value) cueSnapshot.value = value;
+  },
+  { immediate: true }
+);
+watch(
+  targetGroup,
+  (value) => {
+    if (value) groupSnapshot.value = value;
+  },
+  { immediate: true }
+);
+const viewGroupLabel = computed(() =>
+  cardKind.value === 'view' && targetGroup.value
+    ? cueGroupLabel(targetGroup.value.group, targetGroup.value.cues)
+    : null
+);
+const shownCue = computed(() => targetCue.value ?? (cardBusy.value ? cueSnapshot.value : null));
+const shownGroup = computed(
+  () => targetGroup.value ?? (cardBusy.value ? groupSnapshot.value : null)
 );
 
-function newFieldState(field: 'cueType' | 'ident'): boolean | null {
-  const f = v$.value.newFormState[field];
-  return f.$dirty ? !f.$error : null;
-}
-
-function editFieldState(field: 'cueType' | 'ident'): boolean | null {
-  const f = v$.value.editFormState[field];
-  return f.$dirty ? !f.$error : null;
-}
-
-function openEditGroup(group: CueGroup, cues: Cue[]): void {
-  groupModal.value?.openEdit(group, cues, props.line.id!);
-}
-
-// Add cue modal (tabs)
-function openNewForm(): void {
-  activeTab.value = 0;
-  newFormState.value = { cueType: null, ident: null, lineId: props.line.id ?? null };
-  v$.value.newFormState.$reset();
-  newGroupForm.value?.reset();
-  newCueModal.value?.show();
-}
-
-function resetNewForm(): void {
-  newFormState.value = { cueType: null, ident: null, lineId: null };
-  activeTab.value = 0;
-  groupFormValid.value = false;
-  submittingNewCue.value = false;
-  submittingGroup.value = false;
-  v$.value.newFormState.$reset();
-  newGroupForm.value?.reset();
-}
-
-async function onSubmitGroup(): Promise<void> {
-  if (!groupFormValid.value || submittingGroup.value || !newGroupForm.value) return;
-  submittingGroup.value = true;
-  try {
-    const data = newGroupForm.value.getFormData();
-    await scriptStore.addCueGroup({
-      cueTypeId: data.cueTypeId!,
-      labelOverride: data.labelOverride || undefined,
-      lineId: props.line.id!,
-      cues: data.cues.map((c, i) => ({ ident: c.ident, sortOrder: i })),
-    });
-    newCueModal.value?.hide();
-  } finally {
-    submittingGroup.value = false;
+// If a reload removes the cue or group being edited, the page closes the card and says so.
+watch(
+  () =>
+    cardHere.value &&
+    !cardBusy.value &&
+    ((props.activeCard?.cueId != null && !targetCue.value) ||
+      (props.activeCard?.groupId != null && !targetGroup.value)),
+  (gone) => {
+    if (gone) emit('target-gone');
   }
+);
+
+function switchToSingle(): void {
+  // The group card (and anything typed into it) goes away, so nothing is left to lose.
+  addMode.value = 'single';
+  emit('dirty', false);
 }
 
-async function onSubmitNew(event: Event): Promise<void> {
-  v$.value.newFormState.$touch();
-  if (v$.value.newFormState.$invalid || submittingNewCue.value) {
-    (event as SubmitEvent).preventDefault?.();
-    return;
-  }
-  submittingNewCue.value = true;
-  newCueModal.value?.hide();
-  await scriptStore.addNewCue({
-    cueType: newFormState.value.cueType!,
-    ident: newFormState.value.ident!,
-    lineId: newFormState.value.lineId!,
-  });
+function isOpenCue(cueId: number): boolean {
+  return cardHere.value && props.activeCard?.cueId === cueId;
+}
+function isOpenGroup(groupId: number): boolean {
+  return cardHere.value && props.activeCard?.groupId === groupId;
 }
 
-// Edit cue modal
-function openEditForm(cue: Cue): void {
-  editFormState.value = {
-    cueId: cue.id ?? null,
-    cueType: cue.cue_type_id ?? null,
-    ident: cue.ident ?? null,
-    lineId: props.line.id ?? null,
-  };
-  v$.value.editFormState.$reset();
-  editCueModal.value?.show();
+function openAdd(event: Event): void {
+  emit(
+    'open',
+    { lineId: props.line.id as number, kind: 'add' },
+    event.currentTarget as HTMLElement
+  );
 }
 
-function resetEditForm(): void {
-  editFormState.value = { cueId: null, cueType: null, ident: null, lineId: null };
-  submittingEditCue.value = false;
-  deletingCue.value = false;
-  v$.value.editFormState.$reset();
+function openCue(cue: Cue, event: Event): void {
+  // A type this person cannot write opens a read-only note instead of the editor.
+  const kind = canWriteType(cue.cue_type_id) ? 'edit-cue' : 'view';
+  emit(
+    'open',
+    { lineId: props.line.id as number, kind, cueId: cue.id },
+    event.currentTarget as HTMLElement
+  );
 }
 
-async function onSubmitEdit(event?: Event): Promise<void> {
-  v$.value.editFormState.$touch();
-  if (v$.value.editFormState.$invalid || submittingEditCue.value) {
-    (event as SubmitEvent | undefined)?.preventDefault?.();
-    return;
-  }
-  submittingEditCue.value = true;
-  await scriptStore.editCue({
-    cueId: editFormState.value.cueId!,
-    cueType: editFormState.value.cueType!,
-    ident: editFormState.value.ident!,
-    lineId: editFormState.value.lineId!,
-  });
-  editCueModal.value?.hide();
-  resetEditForm();
-}
-
-async function deleteCue(): Promise<void> {
-  const confirmed = await confirm('Are you sure you want to delete this cue?', {
-    title: 'Delete Cue',
-    okVariant: 'danger',
-    okTitle: 'Delete',
-  });
-  if (!confirmed) return;
-  deletingCue.value = true;
-  await scriptStore.deleteCue({
-    cueId: editFormState.value.cueId!,
-    lineId: editFormState.value.lineId!,
-  });
-  editCueModal.value?.hide();
-  resetEditForm();
+function openGroup(group: CueGroup, event: Event): void {
+  const first = mergedCueSlots.value.find((s) => s.type === 'group' && s.group.id === group.id);
+  const sample = first?.type === 'group' ? first.cues[0] : null;
+  const kind = canWriteType(group.cue_type_id) && sample ? 'edit-group' : 'view';
+  emit(
+    'open',
+    {
+      lineId: props.line.id as number,
+      kind,
+      // A view-only group keeps its id too, so its button stays outlined and the note can name it.
+      groupId: group.id,
+      cueId: kind === 'view' ? sample?.id : undefined,
+    },
+    event.currentTarget as HTMLElement
+  );
 }
 </script>
 
@@ -591,12 +537,52 @@ async function deleteCue(): Promise<void> {
   text-align: right;
 }
 
+.cue-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
 .cue-button {
-  padding: 0.2rem;
+  min-height: 32px;
+  padding: 0 10px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  border: 1px solid transparent;
 }
 
 .cue-group-btn {
-  border-style: dashed !important;
+  border: 2px dashed #fff !important;
+}
+
+.cue-selected {
+  box-shadow:
+    0 0 0 2px var(--bs-body-bg),
+    0 0 0 4px #fff;
+}
+
+.add-cue-btn {
+  background: transparent;
+  color: var(--bs-gray-500);
+  border: 1px dashed var(--bs-gray-600);
+}
+
+.add-cue-btn:disabled {
+  opacity: 0.45;
+  border-style: dotted;
+}
+
+.cue-button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.line-cut-note {
+  color: var(--bs-gray-500);
+  font-size: 0.8125rem;
 }
 
 .stage-direction {
@@ -608,9 +594,23 @@ async function deleteCue(): Promise<void> {
   text-decoration: line-through;
 }
 
-.line-row:has(.add-cue-btn:hover) {
+/* Briefly flags the line a find jumped to (same look as the script editor's). */
+.jump-highlight {
+  animation: jump-highlight-flash 2s ease-out;
+}
+@keyframes jump-highlight-flash {
+  0%,
+  40% {
+    background-color: rgba(var(--bs-success-rgb), 0.25);
+    border-radius: 4px;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.line-row-open {
   background-color: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
-  transition: background-color 0.15s ease;
 }
 </style>

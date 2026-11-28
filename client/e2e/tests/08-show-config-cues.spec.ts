@@ -1,5 +1,5 @@
 /**
- * Show Config — Cues tab: cue type CRUD, cue editor navigation, import cue types.
+ * Show Config — Cues: first-visit empty state, cue type CRUD, Script Cues navigation, counts.
  */
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import {
@@ -33,15 +33,62 @@ test.afterAll(async () => {
   await ctx.close();
 });
 
+// ── Script Cues: first visit, before any cue types exist ───────────────────
+
+test('tabs are Script Cues, Cue Types and Cue Counts, with Script Cues first and active', async () => {
+  const tabs = page.locator('.nav-tabs .nav-link');
+  await expect(tabs).toHaveText(['Script Cues', 'Cue Types', 'Cue Counts']);
+  await expect(page.locator('.nav-tabs .nav-link.active')).toHaveText('Script Cues');
+});
+
+test('with no cue types, Script Cues asks for some first', async () => {
+  await expect(page.locator('.tab-pane.active')).toContainText('Add your cue types first');
+  await expect(
+    page.locator('.tab-pane.active button:has-text("Import from Another Show")')
+  ).toBeVisible();
+});
+
+test('the Cue Types tab starts empty', async () => {
+  await page.click('.nav-link:has-text("Cue Types")');
+  await expect(page.locator('.tab-pane.active button:has-text("New Cue Type")')).toBeVisible();
+  await docShot(page, 'config_show/cue_types_empty');
+  await page.click('.nav-link:has-text("Script Cues")');
+});
+
+test('Import from Another Show opens the import dialog on the Cue Types tab', async () => {
+  await page.locator('.tab-pane.active button:has-text("Import from Another Show")').click();
+  await waitForModal(page, 'Import Cue Type');
+  await expect(page.locator('.nav-tabs .nav-link.active')).toHaveText('Cue Types');
+  await expect(page.locator('.modal.show')).toContainText(
+    'No cue types available to import from other shows.'
+  );
+  await page.locator('.modal.show .btn-close').click();
+  await waitForModalClosed(page);
+  await page.click('.nav-link:has-text("Script Cues")');
+});
+
+test('a suggested cue type opens the new type form, pre-filled, on the Cue Types tab', async () => {
+  await page.locator('.tab-pane.active .suggestion-chip:has-text("LX")').click();
+  await waitForModal(page, /Cue Type/);
+  await expect(page.locator('.nav-tabs .nav-link.active')).toHaveText('Cue Types');
+  await expect(page.locator('.modal.show #new-prefix-input')).toHaveValue('LX');
+  await expect(page.locator('.modal.show #new-description-input')).toHaveValue('Lighting');
+});
+
+test('creates the suggested cue type LX', async () => {
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("LX")').first()).toBeVisible();
+});
+
 // ── Cue Types ──────────────────────────────────────────────────────────────
 
 test('Cue Types tab shows New Cue Type button', async () => {
-  await expect(page.locator('button:has-text("New Cue Type")')).toBeVisible();
-  await docShot(page, 'config_show/cue_types_empty');
+  await expect(page.locator('.tab-pane.active button:has-text("New Cue Type")')).toBeVisible();
 });
 
 test('opens New Cue Type modal', async () => {
-  await page.click('button:has-text("New Cue Type")');
+  await page.click('.tab-pane.active button:has-text("New Cue Type")');
   await waitForModal(page, /Cue Type/);
 });
 
@@ -49,16 +96,7 @@ test('Save is disabled when prefix is empty', async () => {
   await expect(page.locator('.modal.show .modal-footer button.btn-primary')).toBeDisabled();
 });
 
-test('creates a cue type LX', async () => {
-  await page.fill('.modal.show input[type="text"]', 'LX');
-  await confirmModal(page);
-  await waitForModalClosed(page);
-  await expect(page.locator('td:has-text("LX")').first()).toBeVisible();
-});
-
 test('creates a cue type SQ', async () => {
-  await page.click('button:has-text("New Cue Type")');
-  await waitForModal(page, /Cue Type/);
   await page.fill('.modal.show input[type="text"]', 'SQ');
   await confirmModal(page);
   await waitForModalClosed(page);
@@ -84,29 +122,28 @@ test('deletes a cue type', async () => {
   await expect(page.locator('td:has-text("SFX")').first()).not.toBeVisible({ timeout: 5_000 });
 });
 
-// ── Cue Editor ────────────────────────────────────────────────────────────
+// ── Script Cues ───────────────────────────────────────────────────────────
 
-test('switches to Cue Configuration sub-tab', async () => {
-  await page.click(
-    '.nav-link:has-text("Cue Configuration"), button[role="tab"]:has-text("Cue Config")'
-  );
-  // Cue editor loads the script view — shows page navigation
+test('switches to the Script Cues tab', async () => {
+  await page.click('.nav-link:has-text("Script Cues")');
+  // The editor loads the script view — shows page navigation
   await expect(page.locator('button:has-text("Go to Page")')).toBeVisible({ timeout: 10_000 });
-  await docShot(page, 'config_show/cue_configuration_empty');
 });
 
-test('cue editor navigation buttons are rendered', async () => {
-  // With no script content there is only one page; verify nav controls are present
-  await expect(page.locator('button:has-text("Next")').first()).toBeVisible();
-  await expect(
-    page.locator('button:has-text("Prev"), button:has-text("Previous")').first()
-  ).toBeVisible();
+test('the toolbar has page navigation, a find box and a cue type filter', async () => {
+  await expect(page.locator('button:has-text("Next Page")')).toBeVisible();
+  await expect(page.locator('button:has-text("Prev Page")')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Find a cue' })).toBeVisible();
+  const filter = page.getByRole('group', { name: 'Show cue types' });
+  await expect(filter.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(filter.getByRole('button', { name: 'LX' })).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('can open the Go to Page dialog in cue editor', async () => {
+test('can open the Go to Page dialog in the cue editor', async () => {
   await page.click('button:has-text("Go to Page")');
   await waitForModal(page, 'Go to Page');
-  // Cancel the dialog — no script pages exist yet at this point in the test suite
+  await expect(page.locator('.modal.show .modal-title')).toHaveText('Go to Page');
+  // Leave without going anywhere.
   await page.click(
     '.modal.show .modal-footer button.btn-secondary, .modal.show button:has-text("Cancel")'
   );
@@ -120,7 +157,7 @@ test('Go to Page submits and navigates to the requested page', async () => {
   await confirmModal(page);
   // If the fix is working, clicking OK closes the modal; previously Vuelidate prevented this
   await waitForModalClosed(page);
-  await expect(page.locator('p.mb-0:has-text("Current Page: 1")')).toBeVisible();
+  await expect(page.getByText('Current Page: 1')).toBeVisible();
 });
 
 // ── Cue Counts ────────────────────────────────────────────────────────────

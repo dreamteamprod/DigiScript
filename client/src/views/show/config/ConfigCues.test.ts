@@ -1,12 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+/* eslint-disable vue/one-component-per-file -- small inline stubs */
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, h, type PropType } from 'vue';
 import ConfigCues from './ConfigCues.vue';
 import { passthrough } from '@/components/show/config/script/testStubs';
 import { useSystemStore } from '@/stores/system';
 import { useShowStore } from '@/stores/show';
 import { useUserStore } from '@/stores/user';
+import CueEditor from '@/components/show/config/cues/CueEditor.vue';
 import type { CueType } from '@/types/api/cues';
 
 // Renders the head/cell slots the view uses for its action buttons.
@@ -107,5 +109,148 @@ describe('ConfigCues cue type actions', () => {
     useUserStore().currentUser = { id: 1, is_admin: true } as never;
 
     expect(buttonLabels(mountView())).toEqual(ALL_ACTIONS);
+  });
+});
+
+// ── The empty state on Script Cues hands off to the Cue Types tab ───────────
+
+const TabsStub = defineComponent({
+  props: { index: { type: Number, default: 0 } },
+  emits: ['update:index'],
+  setup(_, { slots }) {
+    return () => h('div', slots.default?.());
+  },
+});
+const shown: string[] = [];
+const ModalStub = defineComponent({
+  props: { id: { type: String, default: '' } },
+  emits: ['show', 'hide', 'ok'],
+  setup(props, { expose, emit, slots }) {
+    expose({
+      show: () => {
+        shown.push(props.id);
+        emit('show');
+      },
+      hide: () => emit('hide'),
+    });
+    return () => h('div', { 'data-modal': props.id }, slots.default?.());
+  },
+});
+const InputStub = defineComponent({
+  props: { modelValue: { type: String, default: '' } },
+  setup(props) {
+    return () => h('input', { value: props.modelValue });
+  },
+});
+
+function mountForHandoff() {
+  return mount(ConfigCues, {
+    global: {
+      directives: { bModal: {} },
+      stubs: {
+        CueEditor: true,
+        CueCountStats: true,
+        PaginationControls: true,
+        BContainer: passthrough('div'),
+        BRow: passthrough('div'),
+        BCol: passthrough('div'),
+        BTabs: TabsStub,
+        BTab: passthrough('div'),
+        BTable: TableStub,
+        BButton: passthrough('button'),
+        BButtonGroup: passthrough('div'),
+        BModal: ModalStub,
+        BForm: passthrough('form'),
+        BFormGroup: passthrough('div'),
+        BFormInput: InputStub,
+        BFormInvalidFeedback: true,
+        BSpinner: true,
+        BCard: true,
+        BCardHeader: true,
+        BCollapse: true,
+        IMdiChevronUp: true,
+        IMdiChevronDown: true,
+      },
+    },
+  });
+}
+
+describe('ConfigCues hand-off from the Script Cues empty state', () => {
+  enableAutoUnmount(afterEach);
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    shown.length = 0;
+    useSystemStore().rbacRoles = RBAC_ROLES;
+    useUserStore().currentUser = { id: 1, is_admin: true } as never;
+    const showStore = useShowStore();
+    vi.spyOn(showStore, 'getCueTypes').mockResolvedValue(undefined as never);
+    vi.spyOn(showStore, 'getImportableCueTypes').mockResolvedValue({ cue_type_groups: [] });
+    showStore.cueTypes = [];
+  });
+
+  const tabIndex = (w: ReturnType<typeof mountForHandoff>) =>
+    w.findComponent(TabsStub).props('index');
+  const field = (w: ReturnType<typeof mountForHandoff>, modal: string, index: number) =>
+    (w.find(`[data-modal="${modal}"]`).findAll('input')[index].element as HTMLInputElement).value;
+
+  it('starts on the Script Cues tab', () => {
+    expect(tabIndex(mountForHandoff())).toBe(0);
+  });
+
+  it('a suggested type opens the Cue Types tab and the new type form, filled in', async () => {
+    const w = mountForHandoff();
+
+    w.findComponent(CueEditor).vm.$emit('new-type', {
+      prefix: 'LX',
+      description: 'Lighting',
+      colour: '#ffd23f',
+    });
+    await flushPromises();
+
+    expect(tabIndex(w)).toBe(1);
+    expect(shown).toEqual(['new-cue-type']);
+    expect(field(w, 'new-cue-type', 0)).toBe('LX');
+    expect(field(w, 'new-cue-type', 1)).toBe('Lighting');
+    expect(field(w, 'new-cue-type', 2)).toBe('#ffd23f');
+  });
+
+  it('"New Cue Type" with no suggestion opens the form empty', async () => {
+    const w = mountForHandoff();
+
+    w.findComponent(CueEditor).vm.$emit('new-type', null);
+    await flushPromises();
+
+    expect(tabIndex(w)).toBe(1);
+    expect(shown).toEqual(['new-cue-type']);
+    expect(field(w, 'new-cue-type', 0)).toBe('');
+    expect(field(w, 'new-cue-type', 2)).toBe('#000000');
+  });
+
+  it('uses a suggestion once: the next time the form opens it is empty again', async () => {
+    const w = mountForHandoff();
+    w.findComponent(CueEditor).vm.$emit('new-type', {
+      prefix: 'SND',
+      description: 'Sound',
+      colour: '#2563c9',
+    });
+    await flushPromises();
+    expect(field(w, 'new-cue-type', 0)).toBe('SND');
+
+    w.findComponent(CueEditor).vm.$emit('new-type', null);
+    await flushPromises();
+
+    expect(field(w, 'new-cue-type', 0)).toBe('');
+  });
+
+  it('"Import from Another Show" opens the Cue Types tab and the import dialog', async () => {
+    const w = mountForHandoff();
+
+    w.findComponent(CueEditor).vm.$emit('import');
+    await flushPromises();
+
+    expect(tabIndex(w)).toBe(1);
+    expect(shown).toEqual(['import-cue-type-modal']);
+    expect(useShowStore().getImportableCueTypes).toHaveBeenCalledTimes(1);
   });
 });

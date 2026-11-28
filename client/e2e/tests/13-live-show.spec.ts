@@ -439,20 +439,18 @@ test('seeds the compact show with a script and cues', async ({ request }) => {
 
   await leaderPage.goto(`${UI_BASE}/show-config/cues`);
   await waitForAppReady(leaderPage);
-  await leaderPage.click(
-    '.nav-link:has-text("Cue Configuration"), button[role="tab"]:has-text("Cue Config")'
-  );
+  // Script Cues is the first, default tab.
   await expect(leaderPage.locator('.add-cue-btn').first()).toBeVisible({ timeout: 10_000 });
-  const addCue = async (lineIndex: number, typeIndex: number, ident: string) => {
+  const addCue = async (lineIndex: number, prefix: string, ident: string) => {
     await leaderPage.locator('.add-cue-btn').nth(lineIndex).click();
-    await waitForModal(leaderPage, 'Add Cue');
-    await leaderPage.locator('.modal.show select#new-cue-type').selectOption({ index: typeIndex });
-    await leaderPage.locator('.modal.show #new-cue-ident').fill(ident);
-    await confirmModal(leaderPage);
-    await waitForModalClosed(leaderPage);
+    const card = leaderPage.locator('section[aria-label="Add a cue to this line"]');
+    await card.getByRole('radio', { name: new RegExp(`^${prefix}\\b`) }).click();
+    await card.getByLabel('Cue number').fill(ident);
+    await card.getByRole('button', { name: `Add ${prefix} ${ident}` }).click();
+    await expect(card).not.toBeVisible({ timeout: 5_000 });
   };
-  await addCue(0, 1, '1');
-  await addCue(2, 2, '1');
+  await addCue(0, 'LX', '1');
+  await addCue(2, 'SQ', '1');
   await expect(leaderPage.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(2, {
     timeout: 5_000,
   });

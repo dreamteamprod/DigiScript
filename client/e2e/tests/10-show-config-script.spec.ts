@@ -508,192 +508,268 @@ test('deletes the stage direction style', async () => {
   await expect(page.locator('td:has-text("Action")')).not.toBeVisible({ timeout: 5_000 });
 });
 
-// ── Cue editor — add/edit/delete ──────────────────────────────────────────
+// ── Script Cues — add/edit/delete in place ────────────────────────────────
+// Cues are placed with a card that opens under the line, not a modal.
 
-test('navigates to cue editor with saved script content', async () => {
+const addCard = () => page.locator('section[aria-label="Add a cue to this line"]');
+const addGroupCard = () => page.locator('section[aria-label="Add a group of cues to this line"]');
+const realCues = () => page.locator('.cue-button:not(.add-cue-btn)');
+const findBox = () => page.getByRole('combobox', { name: 'Find a cue' });
+
+test('navigates to Script Cues with saved script content', async () => {
   await page.goto(`${UI_BASE}/show-config/cues`);
   await waitForAppReady(page);
-  await page.click(
-    '.nav-link:has-text("Cue Configuration"), button[role="tab"]:has-text("Cue Config")'
-  );
+  // Script Cues is the first and default tab.
+  await expect(page.locator('.nav-link.active:has-text("Script Cues")')).toBeVisible();
   await expect(page.locator('button:has-text("Go to Page")')).toBeVisible({ timeout: 10_000 });
-  // .first() avoids strict-mode violation: BVN keeps the Add New Cue modal in the DOM
-  // (v-show), and its preview also contains a .viewable-line with this text.
   await expect(
     page.locator('.viewable-line').filter({ hasText: 'To be or not to be' }).first()
   ).toBeVisible({ timeout: 10_000 });
+  // The script has content but no cues yet.
+  await docShot(page, 'config_show/cue_configuration_empty');
 });
 
-test('adds a cue to the script line', async () => {
+test('"+ Cue" opens a card with the first free number suggested', async () => {
   await page.locator('.add-cue-btn').first().click();
-  await waitForModal(page, 'Add Cue');
-  // Individual Cue tab is active by default — no extra click needed
-  // Scope to the visible modal's select to avoid matching the hidden "Add Cue Type" modal
-  // dialog which BVN assigns id="new-cue-type" via its auto-ID scheme.
-  await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
-  await page.locator('.modal.show #new-cue-ident').fill('001');
-  await confirmModal(page);
-  await waitForModalClosed(page);
-  // Wait for the actual cue button (not the add-cue-btn which shares the cue-button class)
-  // to confirm the WS update delivered the new cue to the store before proceeding.
-  await expect(page.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({
-    timeout: 5_000,
-  });
+  await expect(addCard()).toBeVisible();
+  // The only cue type is the only writable one, so it is already chosen.
+  await expect(addCard().getByLabel('Cue number')).toHaveValue('1');
+  await expect(addCard().getByRole('button', { name: 'Add LX 1' })).toBeVisible();
+  // While the card is open that line's button says so and cannot be used again.
+  await expect(page.locator('.add-cue-btn').first()).toHaveText('Adding…');
+  await expect(page.locator('.add-cue-btn').first()).toBeDisabled();
+  await docShot(page, 'config_show/cue_add_card');
+});
+
+test('adds a cue with the keyboard alone and focus returns to "+ Cue"', async () => {
+  await addCard().getByLabel('Cue number').fill('001');
+  await addCard().getByLabel('Cue number').press('Enter');
+  await expect(addCard()).not.toBeVisible({ timeout: 5_000 });
+  await expect(realCues().first()).toHaveText('LX 001', { timeout: 5_000 });
+  await expect(page.locator('.add-cue-btn').first()).toBeFocused();
+});
+
+test('edits the cue number in a card', async () => {
+  await realCues().first().click();
+  const card = page.locator('section[aria-label="Edit LX 001"]');
+  await expect(card).toBeVisible();
+  await card.getByLabel('Cue number').fill('002');
+  await card.getByRole('button', { name: 'Save Cue' }).click();
+  await expect(card).not.toBeVisible({ timeout: 5_000 });
+  await expect(realCues().first()).toHaveText('LX 002', { timeout: 5_000 });
+});
+
+test('suggests the next number, and "Add and Stay Open" adds then offers the next', async () => {
+  await page.locator('.add-cue-btn').first().click();
+  await expect(addCard().getByLabel('Cue number')).toHaveValue('3');
+  await addCard().getByRole('button', { name: 'Add and Stay Open' }).click();
+  await expect(realCues()).toHaveCount(2, { timeout: 5_000 });
+  // The card stays open with the next suggestion ready.
+  await expect(addCard()).toBeVisible();
+  await expect(addCard().getByLabel('Cue number')).toHaveValue('4');
+  await addCard().getByRole('button', { name: 'Cancel' }).click();
+  await expect(addCard()).not.toBeVisible();
+});
+
+test('warns about a duplicate number but still allows saving', async () => {
+  await page.locator('.add-cue-btn').first().click();
+  await addCard().getByLabel('Cue number').fill('002');
+  await expect(addCard()).toContainText('LX 002 is already used on page 1. You can still save.');
+  await expect(addCard().getByRole('button', { name: 'Add LX 002' })).toBeEnabled();
+  await addCard().press('Escape');
+  await expect(addCard()).not.toBeVisible();
+});
+
+test('edits a cue number using Enter in the card', async () => {
+  await realCues().last().click();
+  const card = page.locator('section[aria-label^="Edit LX"]');
+  await card.getByLabel('Cue number').fill('004');
+  await card.getByLabel('Cue number').press('Enter');
+  await expect(card).not.toBeVisible({ timeout: 5_000 });
+  await expect(realCues()).toHaveCount(2, { timeout: 5_000 });
+  await expect(realCues().last()).toHaveText('LX 004');
   await docShot(page, 'config_show/cue_configuration_with_cues');
 });
 
-test('edits the cue identifier', async () => {
-  // Use :not(.add-cue-btn) to target the real cue button, not the add button
-  await page.locator('.cue-button:not(.add-cue-btn)').first().click();
-  await waitForModal(page, 'Edit Cue');
-  await page.locator('.modal.show #edit-cue-ident').fill('002');
-  await confirmModal(page);
-  await waitForModalClosed(page);
-  await expect(page.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({
+test('Find offers close matches when there is no exact one', async () => {
+  await findBox().fill('LX 005');
+  await findBox().press('Enter');
+  await expect(page.getByText('No LX 005 yet. Did you mean:')).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/cue_find');
+  await findBox().press('Escape');
+  await expect(page.getByText('No LX 005 yet. Did you mean:')).not.toBeVisible();
+});
+
+test('Find lists matches as you type, and clicking one jumps to the cue and says where it went', async () => {
+  await findBox().fill('LX 004');
+  // After a short pause the match is listed; nothing moves until you choose it. The list must
+  // be on screen and clickable (toBeVisible alone would pass even if the toolbar covered it).
+  const option = page.getByRole('option', { name: /LX 004/ });
+  await expect(option).toBeInViewport({ timeout: 5_000 });
+  await expect(page.locator('.v-toast__text').filter({ hasText: /Jumped to/ })).toHaveCount(0);
+  await option.click();
+  await expect(page.locator('.v-toast__text').filter({ hasText: /Jumped to LX 004/ })).toBeVisible({
     timeout: 5_000,
   });
 });
 
-test('can add a cue using Enter key in Add New Cue modal', async () => {
-  await page.locator('.add-cue-btn').first().click();
-  await waitForModal(page, 'Add Cue');
-  // Individual Cue tab is active by default — no extra click needed
-  await page.locator('.modal.show select#new-cue-type').selectOption({ index: 1 });
-  await page.locator('.modal.show #new-cue-ident').fill('003');
-  // Enter key submits the form (fix: BForm @submit bound to onSubmitNew)
-  // Scope to .modal.show to avoid strict-mode violation from other Add New Cue modal instances
-  // in the DOM (one per viewable script line — BVN v-show keeps them all present).
-  await page.locator('.modal.show #new-cue-ident').press('Enter');
-  await waitForModalClosed(page);
-  await expect(page.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(2, { timeout: 5_000 });
-});
-
-test('can edit a cue identifier using Enter key in Edit Cue modal', async () => {
-  // Click the second cue button (003)
-  await page.locator('.cue-button:not(.add-cue-btn)').last().click();
-  await waitForModal(page, 'Edit Cue');
-  await page.locator('.modal.show #edit-cue-ident').fill('004');
-  // Enter key submits the form (fix: BForm @submit bound to onSubmitEdit)
-  await page.locator('.modal.show #edit-cue-ident').press('Enter');
-  await waitForModalClosed(page);
-  await expect(page.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(2, { timeout: 5_000 });
-});
-
-test('Jump to Cue navigates and auto-closes the modal', async () => {
-  await page.click('button:has-text("Go to Cue")');
-  await waitForModal(page, 'Jump to Cue');
-  await page.locator('.modal.show select').selectOption({ index: 1 }); // LX type
-  await page.locator('.modal.show input').fill('004');
-  await confirmModal(page); // Click Search
-  // Single exact match → navigateToMatch() now calls modal.hide() (fix)
-  await waitForModalClosed(page);
-  await expect(page.locator('.v-toast__text').filter({ hasText: /Jumped to/ })).toBeVisible({
+test('Find jumps straight to a cue on Enter, without waiting for the list', async () => {
+  await findBox().fill('LX 002');
+  await findBox().press('Enter');
+  await expect(page.locator('.v-toast__text').filter({ hasText: /Jumped to LX 002/ })).toBeVisible({
     timeout: 5_000,
   });
 });
 
-test('deletes the Enter-key-added cue', async () => {
-  // Removes the LX 004 cue created in the Enter key test, leaving only LX 002
-  await page.locator('.cue-button:not(.add-cue-btn)').last().click();
-  await waitForModal(page, 'Edit Cue');
-  await page.locator('.modal.show button:has-text("Delete")').click();
-  await waitForModal(page, 'Delete Cue');
-  await page
-    .locator('.modal.show')
-    .filter({ has: page.locator('.modal-title:has-text("Delete Cue")') })
-    .locator('.modal-footer button.btn-danger')
-    .click();
-  await expect(page.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(1, { timeout: 5_000 });
+test('Find says so when no cue matches', async () => {
+  await findBox().fill('LX 999');
+  await findBox().press('Enter');
+  await expect(page.getByText('No cues found matching “LX 999”.')).toBeVisible({ timeout: 5_000 });
+  await findBox().press('Escape');
+  await expect(page.getByText('No cues found matching “LX 999”.')).not.toBeVisible();
 });
 
-test('deletes the cue', async () => {
-  await page.locator('.cue-button:not(.add-cue-btn)').first().click();
-  await waitForModal(page, 'Edit Cue');
-  // Clicking Delete in Edit Cue opens a stacked ConfirmDialog (BVN modal via useConfirm),
-  // not a browser dialog — scope to it by title to avoid clicking the wrong modal's button.
-  await page.locator('.modal.show button:has-text("Delete")').click();
-  await waitForModal(page, 'Delete Cue');
+test('Find asks which cue type a bare number is', async () => {
+  await findBox().fill('2');
+  await findBox().press('Enter');
+  await expect(page.getByText('Which cue type is 2?')).toBeVisible({ timeout: 5_000 });
+  await findBox().press('Escape');
+});
+
+test('deletes a cue after confirming', async () => {
+  await realCues().last().click();
   await page
-    .locator('.modal.show')
-    .filter({ has: page.locator('.modal-title:has-text("Delete Cue")') })
-    .locator('.modal-footer button.btn-danger')
+    .locator('section[aria-label^="Edit LX"]')
+    .getByRole('button', { name: 'Delete Cue' })
     .click();
-  // After deletion only the add-cue-btn remains; no actual cue buttons should exist
-  await expect(page.locator('.cue-button:not(.add-cue-btn)')).not.toBeVisible({ timeout: 5_000 });
+  await confirmDialog(page);
+  await expect(realCues()).toHaveCount(1, { timeout: 10_000 });
+  // Deleting your own cue is not "someone else" changing it, and focus goes back to "+ Cue".
+  await expect(page.getByText('changed or removed by someone else')).toHaveCount(0);
+  await expect(page.locator('.add-cue-btn').first()).toBeFocused();
+});
+
+test('deletes the last cue', async () => {
+  await realCues().first().click();
+  await page
+    .locator('section[aria-label^="Edit LX"]')
+    .getByRole('button', { name: 'Delete Cue' })
+    .click();
+  await confirmDialog(page);
+  await expect(realCues()).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByText('changed or removed by someone else')).toHaveCount(0);
 });
 
 // ── Cue Groups ────────────────────────────────────────────────────────────
 
-test('opens Add Cue modal with Individual Cue and Cue Group tabs', async () => {
-  // After individual cue tests all cues have been deleted. Still on the cue config page.
+test('the add card can switch to a group of cues', async () => {
   await page.locator('.add-cue-btn').first().click();
-  await waitForModal(page, 'Add Cue');
-  await expect(page.locator('.modal.show .nav-link:has-text("Individual Cue")')).toBeVisible();
-  await expect(page.locator('.modal.show .nav-link:has-text("Cue Group")')).toBeVisible();
-  // Dismiss via the × close button (Escape is unreliable in BVN with BTabs in Firefox)
-  await page.locator('.modal.show .btn-close').click();
-  await waitForModalClosed(page);
+  await expect(addCard()).toBeVisible();
+  await addCard().getByRole('button', { name: 'Group of Cues' }).click();
+  await expect(addGroupCard()).toBeVisible();
+  // Switching keeps the chosen type.
+  await expect(addGroupCard().getByRole('radio', { name: /LX/ })).toHaveAttribute(
+    'aria-checked',
+    'true'
+  );
 });
 
-test('switches to Cue Group tab to show group form', async () => {
-  await page.locator('.add-cue-btn').first().click();
-  await waitForModal(page, 'Add Cue');
-  await page.locator('.modal.show .nav-link:has-text("Cue Group")').click();
-  // Wait for tab content to be visible (BTabs lazy may delay mount)
-  await expect(page.locator('.modal.show input[placeholder="1 > 100"]')).toBeVisible({
-    timeout: 10_000,
-  });
+test('adds the range 1 to 5 and shows five cues', async () => {
+  await addGroupCard().getByLabel('From number').fill('1');
+  await addGroupCard().getByLabel('To number').fill('5');
+  await addGroupCard().getByRole('button', { name: 'Add Range' }).click();
+  await expect(addGroupCard().locator('.member-input')).toHaveCount(5, { timeout: 3_000 });
+  await expect(addGroupCard().getByRole('button', { name: 'Add Group of 5' })).toBeVisible();
+  await docShot(page, 'config_show/cue_group_card');
 });
 
-test('selects cue type and adds range 1 > 5', async () => {
-  // Scope to .tab-pane.active to avoid matching hidden Individual Cue tab's select.
-  // CueGroupForm filters out the N/A option, so LX is at index 0 (not 1).
-  await page.locator('.modal.show .tab-pane.active select').selectOption({ index: 0 });
-  await page.locator('.modal.show input[placeholder="1 > 100"]').fill('1 > 5');
-  await page.locator('.modal.show button:has-text("Add Range")').click();
-  // 5 cue ident inputs should appear (scoped to active tab pane to avoid hidden #new-cue-ident)
-  await expect(
-    page.locator('.modal.show .tab-pane.active input[placeholder="Identifier"]')
-  ).toHaveCount(5, {
-    timeout: 3_000,
-  });
-});
-
-test('saves the cue group and shows a dashed group button with range label', async () => {
-  await page.locator('.modal.show button:has-text("Save Group")').click();
-  await waitForModalClosed(page);
+test('saves the group and shows a dashed group button with the range label', async () => {
+  await addGroupCard().getByRole('button', { name: 'Add Group of 5' }).click();
+  await expect(addGroupCard()).not.toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.cue-group-btn').first()).toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.cue-group-btn').first()).toContainText('LX 1 - LX 5');
 });
 
-test('clicks group button to open Edit Cue Group modal with 5 cues listed', async () => {
+test('opens the group in a card with its 5 cues listed', async () => {
   await page.locator('.cue-group-btn').first().click();
-  await waitForModal(page, 'Edit Cue Group');
-  await expect(page.locator('.modal.show input[placeholder="Identifier"]')).toHaveCount(5, {
-    timeout: 5_000,
-  });
+  const card = page.locator('section[aria-label^="Edit group"]');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.member-input')).toHaveCount(5);
 });
 
-test('adds label override and group button label updates on save', async () => {
-  await page.locator('.modal.show input[placeholder="e.g. Music Intro"]').fill('Music Intro');
-  await page.locator('.modal.show button:has-text("Save Group")').click();
-  await waitForModalClosed(page);
+test('reorders a group with the arrow buttons', async () => {
+  const card = page.locator('section[aria-label^="Edit group"]');
+  await card.getByRole('button', { name: 'Move cue 1 later' }).click();
+  await expect(card.locator('.member-input').first()).toHaveValue('2');
+  await card.getByRole('button', { name: 'Move cue 1 earlier' }).click();
+  await expect(card.locator('.member-input').first()).toHaveValue('1');
+});
+
+test('adds a group name and the group button label updates on save', async () => {
+  const card = page.locator('section[aria-label^="Edit group"]');
+  await card.getByLabel('Group name (optional)').fill('Music Intro');
+  await card.getByRole('button', { name: 'Save Group' }).click();
+  await expect(card).not.toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.cue-group-btn').first()).toContainText('LX - Music Intro');
 });
 
-test('deletes the cue group and column returns to empty', async () => {
+test('asks before discarding a changed group card', async () => {
   await page.locator('.cue-group-btn').first().click();
-  await waitForModal(page, 'Edit Cue Group');
-  await page.locator('.modal.show button:has-text("Delete Group")').click();
-  // useConfirm opens a stacked BVN modal — scope to its title to avoid intercepting the
-  // Edit Cue Group modal footer behind it.
-  await waitForModal(page, 'Delete Cue Group');
+  const card = page.locator('section[aria-label^="Edit group"]');
+  await card.getByRole('button', { name: 'Move cue 1 later' }).click();
+  await card.getByRole('button', { name: 'Cancel' }).click();
+  await waitForModal(page, 'Discard Changes');
+  // Keep editing: the card stays.
   await page
     .locator('.modal.show')
-    .filter({ has: page.locator('.modal-title:has-text("Delete Cue Group")') })
-    .locator('.modal-footer button.btn-danger')
+    .filter({ has: page.locator('.modal-title:has-text("Discard Changes")') })
+    .locator('.modal-footer button.btn-secondary')
     .click();
-  await expect(page.locator('.cue-group-btn')).not.toBeVisible({ timeout: 5_000 });
+  await waitForModalClosed(page);
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: 'Cancel' }).click();
+  await confirmDialog(page);
+  await expect(card).not.toBeVisible({ timeout: 5_000 });
+});
+
+test('deletes the cue group after confirming', async () => {
+  await page.locator('.cue-group-btn').first().click();
+  await page
+    .locator('section[aria-label^="Edit group"]')
+    .getByRole('button', { name: 'Delete Group' })
+    .click();
+  await confirmDialog(page);
+  await expect(page.locator('.cue-group-btn')).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByText('changed or removed by someone else')).toHaveCount(0);
+});
+
+test('a group of 100 cues scrolls inside the card instead of stretching it', async () => {
+  await page.locator('.add-cue-btn').first().click();
+  await addCard().getByRole('button', { name: 'Group of Cues' }).click();
+  await addGroupCard().getByLabel('From number').fill('1');
+  await addGroupCard().getByLabel('To number').fill('100');
+  await addGroupCard().getByRole('button', { name: 'Add Range' }).click();
+  await expect(addGroupCard().locator('.member-tile')).toHaveCount(100);
+
+  const list = addGroupCard().getByRole('group', { name: 'Cues in this group' });
+  const sizes = await list.evaluate((el) => ({
+    scroll: el.scrollHeight,
+    client: el.clientHeight,
+    window: window.innerHeight,
+  }));
+  // Long content scrolls in a box that is a fraction of the window, not the full list height.
+  expect(sizes.scroll).toBeGreaterThan(sizes.client);
+  expect(sizes.client).toBeLessThanOrEqual(sizes.window * 0.5);
+
+  // The last cue is reachable by scrolling, and the group can still be added.
+  await addGroupCard().getByLabel('Cue 100 of 100').scrollIntoViewIfNeeded();
+  await expect(addGroupCard().getByLabel('Cue 100 of 100')).toBeInViewport();
+  await expect(addGroupCard().getByRole('button', { name: 'Add Group of 100' })).toBeEnabled();
+
+  // Leave without adding: the changed group card asks first.
+  await addGroupCard().getByRole('button', { name: 'Cancel' }).click();
+  await confirmDialog(page);
+  await expect(addGroupCard()).not.toBeVisible({ timeout: 5_000 });
 });
 
 // ── Line part removal ──────────────────────────────────────────────────────

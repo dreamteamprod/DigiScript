@@ -24,6 +24,6 @@ export function mockCommonScriptStores(): void {
   }
   vi.spyOn(useScriptStore(), 'getStageDirectionStyles').mockResolvedValue();
   vi.spyOn(useScriptStore(), 'getCuts').mockResolvedValue();
-  vi.spyOn(useScriptStore(), 'loadScriptPage').mockResolvedValue();
+  vi.spyOn(useScriptStore(), 'loadScriptPage').mockResolvedValue(true);
   vi.spyOn(useScriptConfigStore(), 'getScriptConfigStatus').mockResolvedValue();
 }
