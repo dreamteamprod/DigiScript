@@ -129,9 +129,10 @@ test('creates a branch from the current revision, giving the graph two branches'
   await waitForModal(page, 'Revision 1');
   await page.locator('.modal.show button:has-text("Create Branch From Here")').click();
   await waitForModal(page, 'Create Revision Branch');
-  // The modal clears its form when its `show` event fires (setupBranchForm), which on a slower
-  // browser (Firefox in CI) can land after a fill made as soon as the title is visible, leaving
-  // OK disabled. Refill until the description has stuck and OK is enabled.
+  // Observed on Firefox in CI: the description can be reset right after it is filled while the
+  // modal is still opening, leaving OK disabled. Refill until the description has stuck and OK
+  // is enabled (the loop asserts that end state, so it can't hide a description that never
+  // sticks).
   await expect(async () => {
     await page.fill('.modal.show #branch-description', 'Alternative ending');
     await expect(page.locator('.modal.show .modal-footer button.btn-primary')).toBeEnabled({

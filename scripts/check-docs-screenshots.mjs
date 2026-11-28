@@ -10,6 +10,8 @@
  *  - a PNG under docs/images is neither referenced nor under IGNORED_PREFIXES (an orphan)
  *  - a `docShot()` call's name is not a plain string literal (e.g. `'x' + suffix`), so it cannot
  *    be checked statically
+ *  - `docShot` is used in a form the check cannot follow (renamed on import, `ns.docShot(...)`,
+ *    `(docShot)(...)`, passed around as a value), which would otherwise be silently ignored
  *
  * The spec files are parsed with the TypeScript compiler API (from client/node_modules, so run
  * `pnpm install` in client/ first), so comments, regex literals and template strings are handled
@@ -31,9 +33,12 @@ const testsDir = path.join(root, 'client', 'e2e', 'tests');
 let ts;
 try {
   ts = createRequire(path.join(root, 'client', 'package.json'))('typescript');
-} catch {
+} catch (error) {
+  const missing = error?.code === 'MODULE_NOT_FOUND';
   console.error(
-    'Could not load `typescript` from client/node_modules: run `pnpm install` in client/.'
+    missing
+      ? 'Could not find `typescript` in client/node_modules: run `pnpm install` in client/.'
+      : `Could not load \`typescript\` from client/node_modules: ${error?.message ?? error}`
   );
   process.exit(2);
 }
@@ -73,7 +78,21 @@ function literalName(nameArg) {
   return isLiteral ? nameArg.text : null;
 }
 
-/** Every `docShot(...)` call in a spec file, as `{ name | null, where }`. */
+/**
+ * Uses of `docShot` other than a direct call or the plain import: a renamed import
+ * (`docShot as shoot`), `ns.docShot(...)`, `(docShot)(...)` or passing it around as a value.
+ * The check can't follow those, so they would otherwise be silently ignored.
+ */
+function isUnfollowableUse(node) {
+  if (ts.isImportSpecifier(node)) return node.propertyName?.text === 'docShot';
+  if (!ts.isIdentifier(node) || node.text !== 'docShot') return false;
+  const parent = node.parent;
+  // Import specifiers are judged as a whole above (a plain import is fine, a rename is not).
+  if (ts.isImportSpecifier(parent)) return false;
+  return !(ts.isCallExpression(parent) && parent.expression === node);
+}
+
+/** Every `docShot(...)` call in a spec file, as `{ name | null, where }` (null = not a literal). */
 function docShotCalls(file) {
   const source = ts.createSourceFile(
     file,
@@ -87,12 +106,12 @@ function docShotCalls(file) {
       ts.isCallExpression(node) &&
       ts.isIdentifier(node.expression) &&
       node.expression.text === 'docShot';
+    const { line } = source.getLineAndCharacterOfPosition(node.getStart());
+    const where = `${path.relative(root, file)}:${line + 1}`;
     if (isDocShot) {
-      const { line } = source.getLineAndCharacterOfPosition(node.getStart());
-      calls.push({
-        name: literalName(node.arguments[1]),
-        where: `${path.relative(root, file)}:${line + 1}`,
-      });
+      calls.push({ name: literalName(node.arguments[1]), where });
+    } else if (isUnfollowableUse(node)) {
+      calls.push({ name: undefined, where });
     }
     ts.forEachChild(node, visit);
   };
@@ -104,9 +123,11 @@ const referenced = referencedNames();
 
 const captured = new Map(); // name -> [file:line, ...]
 const unreadable = []; // docShot() calls whose name isn't a string literal
+const unfollowable = []; // uses of docShot the check can't follow (alias, namespace, value)
 for (const file of walk(testsDir, (f) => f.endsWith('.spec.ts'))) {
   for (const { name, where } of docShotCalls(file)) {
-    if (name === null) unreadable.push(where);
+    if (name === undefined) unfollowable.push(where);
+    else if (name === null) unreadable.push(where);
     else captured.set(name, [...(captured.get(name) ?? []), where]);
   }
 }
@@ -137,6 +158,10 @@ report(
   [...referenced].filter((n) => !onDiskSet.has(n)).sort(byName)
 );
 report("docShot() name is not a plain string literal, so it can't be checked", unreadable);
+report(
+  "docShot is used in a form the check can't follow (renamed import, ns.docShot, value)",
+  unfollowable
+);
 report(
   'docShot() name not referenced from docs',
   [...captured.keys()].filter((n) => !referenced.has(n)).sort(byName)

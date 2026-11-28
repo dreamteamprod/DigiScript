@@ -109,8 +109,9 @@ pnpm run docs:shots:check
   `../images/<folder>/<name>.png`, or `../../images/...` from `docs/pages/show_config/`) and add
   `await docShot(page, '<folder>/<name>')` where the UI is in the state the docs describe.
   `docs:shots:check` (also run in CI) fails if the two disagree, if a referenced image doesn't
-  exist, or if a `docShot(` call isn't in the form `docShot(<identifier>, '<single-quoted name>'`
-  that it can read (Prettier keeps single quotes, so this holds by default).
+  exist, or if a `docShot()` name isn't a plain string literal (so it can't be checked), or if
+  `docShot` is used in a form the check can't follow (renamed on import, `ns.docShot(...)`,
+  passed around as a value). Call it directly as `docShot(page, '<folder>/<name>')`.
 - **Anything that varies per run** (timestamps, generated passwords/tokens, hostnames) must be
   neutralised so the image is stable: `fixText` replaces the text with a fixed value, `mask`
   paints over an element. Both fail the test if their selector matches nothing, and `fixText`

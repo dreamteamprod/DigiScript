@@ -430,12 +430,17 @@ test('can change JWT Token Lifetime and submit successfully', async () => {
     // Wait for this attempt's own PATCH to be answered rather than for a toast: the first
     // Submit's "Saved settings" toast can still be on screen, and a retried attempt can add more.
     const saved = page.waitForResponse(
-      (r) => r.request().method() === 'PATCH' && r.url().endsWith('/api/v1/settings') && r.ok(),
+      (r) => r.request().method() === 'PATCH' && new URL(r.url()).pathname === '/api/v1/settings',
       { timeout: 5_000 }
     );
     saved.catch(() => {}); // a failed attempt is retried; don't leave its rejection unhandled
     await page.locator('button:has-text("Submit")').click({ timeout: 5_000 });
-    await saved;
+    const response = await saved;
+    // Not part of the predicate, so a 4xx/5xx shows its status and body rather than a timeout.
+    expect(
+      response.ok(),
+      `PATCH /api/v1/settings: ${response.status()} ${await response.text()}`
+    ).toBe(true);
   }).toPass({ timeout: 30_000 });
   // Let the toasts clear so nothing leaks into the next test.
   await expect(page.locator('.v-toast__item')).toHaveCount(0, { timeout: 15_000 });
