@@ -64,17 +64,17 @@
             @page-change="currentPage = $event"
             @current-line-change="currentLineOnPage = $event"
           />
+          <CurrentCueFooter
+            v-if="userStore.userSettings?.show_current_cue_footer"
+            :current-page="currentPage"
+            :current-line-on-page="currentLineOnPage"
+          />
         </Pane>
         <Pane v-if="showStore.stageManagerMode" :size="20">
           <StageManagerPane :session-follow-data="showStore.sessionFollowData" />
         </Pane>
       </Splitpanes>
     </BOverlay>
-    <CurrentCueFooter
-      v-if="userStore.userSettings?.show_current_cue_footer"
-      :current-page="currentPage"
-      :current-line-on-page="currentLineOnPage"
-    />
   </BContainer>
 </template>
 
