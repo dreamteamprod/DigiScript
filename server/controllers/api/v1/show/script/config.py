@@ -9,52 +9,53 @@ from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import requires_show
 
 
+def _session_summaries(session, client_sessions) -> list[dict]:
+    """Summarise client sessions as ``{internal_id, username}`` dicts."""
+    summaries = []
+    for client_session in client_sessions:
+        user = (
+            session.get(User, client_session.user_id)
+            if client_session.user_id
+            else None
+        )
+        summaries.append(
+            {
+                "internal_id": client_session.internal_id,
+                "username": user.username if user else None,
+            }
+        )
+    return summaries
+
+
 @ApiRoute("show/script/config", ApiVersion.V1)
 class ScriptStatusController(BaseAPIController):
+    async def _has_unsaved_draft(self, session) -> bool:
+        """True if the current show's script has an unsaved collaborative draft."""
+        current_show = self.get_current_show()
+        if not current_show:
+            return False
+        show = session.get(Show, current_show["id"])
+        if not show:
+            return False
+        script = session.scalar(select(Script).where(Script.show_id == show.id))
+        if not (script and script.current_revision):
+            return False
+        room_manager = getattr(self.application, "room_manager", None)
+        if not room_manager:
+            return False
+        return await room_manager.has_unsaved_changes()
+
     @requires_show
     async def get(self):
         with self.make_session() as session:
-            # Editors
-            editor_sessions = session.scalars(
-                select(Session).where(Session.is_editor)
-            ).all()
-            editors = []
-            for es in editor_sessions:
-                user = session.get(User, es.user_id) if es.user_id else None
-                editors.append(
-                    {
-                        "internal_id": es.internal_id,
-                        "username": user.username if user else None,
-                    }
-                )
-
-            # Cutters
-            cutter_sessions = session.scalars(
-                select(Session).where(Session.is_cutting)
-            ).all()
-            cutters = []
-            for cs in cutter_sessions:
-                user = session.get(User, cs.user_id) if cs.user_id else None
-                cutters.append(
-                    {
-                        "internal_id": cs.internal_id,
-                        "username": user.username if user else None,
-                    }
-                )
-
-            # Check for unsaved draft
-            has_draft = False
-            current_show = self.get_current_show()
-            if current_show:
-                show = session.get(Show, current_show["id"])
-                if show:
-                    script = session.scalar(
-                        select(Script).where(Script.show_id == show.id)
-                    )
-                    if script and script.current_revision:
-                        room_manager = getattr(self.application, "room_manager", None)
-                        if room_manager:
-                            has_draft = await room_manager.has_unsaved_changes()
+            editors = _session_summaries(
+                session, session.scalars(select(Session).where(Session.is_editor)).all()
+            )
+            cutters = _session_summaries(
+                session,
+                session.scalars(select(Session).where(Session.is_cutting)).all(),
+            )
+            has_draft = await self._has_unsaved_draft(session)
 
             data = {
                 "editors": editors,
