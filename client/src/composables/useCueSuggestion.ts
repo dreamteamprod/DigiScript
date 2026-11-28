@@ -4,7 +4,13 @@ import type { Cue, LinePosition } from '@/types/api/cues';
 import type { ScriptLine } from '@/types/api/script';
 
 /**
- * Suggested cue numbers and "nearest cues", per HANDOFF section 2.5.
+ * Suggested cue numbers, and the "nearest cues" shown beside them.
+ *
+ * A suggestion is for a new cue of one type on one line. It looks at the cues of that type on or
+ * above the line (`before`), below it (`after`) and every number of that type in the revision
+ * (`used`). Only plain numbers such as `13` or `13.5` count as neighbours; others, like `INTRO`,
+ * are ignored. It prefers the next whole number when there is room, and otherwise a decimal
+ * between the two neighbours; the numbered cases in `suggestCueNumber` spell out the rules.
  *
  * All arithmetic is done on BigInt-scaled decimals, never floating point, so that
  * 13.1 + 0.2 and friends behave exactly.

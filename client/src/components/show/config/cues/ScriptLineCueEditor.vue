@@ -192,6 +192,7 @@
             @cancel="emit('close-card')"
             @done="emit('close-card')"
             @busy="(value) => (cardBusy = value)"
+            @stale="emit('target-gone')"
           />
           <CueCard
             v-else-if="cardKind === 'view' && targetCue"
@@ -199,6 +200,7 @@
             :line="line"
             :line-label="lineLabel"
             :cue="targetCue"
+            :group-label="viewGroupLabel"
             :type-id="null"
           />
           <CueGroupCard
@@ -214,6 +216,7 @@
             @done="emit('close-card')"
             @dirty="(value) => emit('dirty', value)"
             @busy="(value) => (cardBusy = value)"
+            @stale="emit('target-gone')"
           />
         </BCol>
       </BRow>
@@ -456,6 +459,11 @@ watch(
   },
   { immediate: true }
 );
+const viewGroupLabel = computed(() =>
+  cardKind.value === 'view' && targetGroup.value
+    ? cueGroupLabel(targetGroup.value.group, targetGroup.value.cues)
+    : null
+);
 const shownCue = computed(() => targetCue.value ?? (cardBusy.value ? cueSnapshot.value : null));
 const shownGroup = computed(
   () => targetGroup.value ?? (cardBusy.value ? groupSnapshot.value : null)
@@ -513,7 +521,8 @@ function openGroup(group: CueGroup, event: Event): void {
     {
       lineId: props.line.id as number,
       kind,
-      groupId: kind === 'edit-group' ? group.id : undefined,
+      // A view-only group keeps its id too, so its button stays outlined and the note can name it.
+      groupId: group.id,
       cueId: kind === 'view' ? sample?.id : undefined,
     },
     event.currentTarget as HTMLElement

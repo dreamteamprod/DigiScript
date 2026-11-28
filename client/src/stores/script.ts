@@ -21,6 +21,8 @@ export const useScriptStore = defineStore('script', {
     cues: {} as Record<string, Cue[]>,
     cueGroups: [] as CueGroup[],
     linePositions: {} as Record<string, LinePosition>,
+    /** Whether `loadCues` has succeeded at least once (an empty result is still "loaded"). */
+    cuesLoaded: false,
   }),
 
   getters: {
@@ -137,21 +139,28 @@ export const useScriptStore = defineStore('script', {
   },
 
   actions: {
-    async loadScriptPage(page: number | string): Promise<void> {
+    /** Load one page of the script. Resolves `false` (never rejects) when it could not be loaded. */
+    async loadScriptPage(page: number | string): Promise<boolean> {
       const params = new URLSearchParams({ page: String(page) });
-      const response = await fetch(`${makeURL('/api/v1/show/script')}?${params}`);
-      if (response.ok) {
+      try {
+        const response = await fetch(`${makeURL('/api/v1/show/script')}?${params}`);
+        if (!response.ok) {
+          log.error('Unable to load script page');
+          return false;
+        }
         const data = await response.json();
         this.script[String(data.page)] = data.lines;
-      } else {
-        log.error('Unable to load script page');
+        return true;
+      } catch (error) {
+        log.error('Unable to load script page', error);
+        return false;
       }
     },
 
     async scriptPageChanged(data: { page: number }): Promise<void> {
       // Lines moved, so the page/index of every cued line may have changed too.
       // Only once cues have been loaded, so views that never show cues don't pay for it.
-      if (Object.keys(this.linePositions).length > 0) await this.loadCues();
+      if (this.cuesLoaded) await this.loadCues();
       const pageStr = String(data.page);
       if (Object.hasOwn(this.script, pageStr)) {
         await this.loadScriptPage(data.page);
@@ -340,33 +349,67 @@ export const useScriptStore = defineStore('script', {
       this.script = {};
     },
 
+    /** Load the cues. Resolves `false` (never rejects) when they could not be loaded. */
     async loadCues(): Promise<boolean> {
-      const response = await fetch(makeURL('/api/v1/show/cues'));
-      if (response.ok) {
+      try {
+        const response = await fetch(makeURL('/api/v1/show/cues'));
+        if (!response.ok) {
+          log.error('Unable to load cues');
+          return false;
+        }
         const data = await response.json();
         this.cues = data.cues as Record<string, Cue[]>;
         this.cueGroups = (data.cue_groups ?? []) as CueGroup[];
         // Missing entries mean "position unknown", never "first line".
         this.linePositions = (data.line_positions ?? {}) as Record<string, LinePosition>;
+        this.cuesLoaded = true;
         return true;
+      } catch (error) {
+        log.error('Unable to load cues', error);
+        return false;
       }
-      log.error('Unable to load cues');
-      return false;
+    },
+
+    /**
+     * Send one cue change, then refresh the cues.
+     *
+     * Only the write decides the result. Once it has succeeded, a failed refresh must not
+     * report the change as failed: the caller would offer a retry that creates a duplicate
+     * (add) or fails on something already gone (delete). It is reported as a warning instead.
+     */
+    async sendCueChange(
+      send: () => Promise<Response>,
+      messages: { success: string; error: string }
+    ): Promise<boolean> {
+      try {
+        const response = await send();
+        if (!response.ok) {
+          toast.error(messages.error);
+          return false;
+        }
+      } catch (error) {
+        log.error(messages.error, error);
+        toast.error(messages.error);
+        return false;
+      }
+      if (await this.loadCues()) {
+        toast.success(messages.success);
+      } else {
+        toast.warning(`${messages.success.replace(/!$/, '')}, but the cues could not be refreshed`);
+      }
+      return true;
     },
 
     async addNewCue(cue: { cueType: number; ident: string; lineId: number }): Promise<boolean> {
-      const response = await fetch(makeURL('/api/v1/show/cues'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cue),
-      });
-      if (response.ok) {
-        await this.loadCues();
-        toast.success('Added new cue!');
-        return true;
-      }
-      toast.error('Unable to add new cue');
-      return false;
+      return this.sendCueChange(
+        () =>
+          fetch(makeURL('/api/v1/show/cues'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cue),
+          }),
+        { success: 'Added new cue!', error: 'Unable to add new cue' }
+      );
     },
 
     async editCue(cue: {
@@ -375,18 +418,15 @@ export const useScriptStore = defineStore('script', {
       ident: string;
       lineId: number;
     }): Promise<boolean> {
-      const response = await fetch(makeURL('/api/v1/show/cues'), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cue),
-      });
-      if (response.ok) {
-        await this.loadCues();
-        toast.success('Edited cue!');
-        return true;
-      }
-      toast.error('Unable to edit cue');
-      return false;
+      return this.sendCueChange(
+        () =>
+          fetch(makeURL('/api/v1/show/cues'), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cue),
+          }),
+        { success: 'Edited cue!', error: 'Unable to edit cue' }
+      );
     },
 
     async deleteCue(cue: { cueId: number; lineId: number }): Promise<boolean> {
@@ -394,17 +434,14 @@ export const useScriptStore = defineStore('script', {
         cueId: String(cue.cueId),
         lineId: String(cue.lineId),
       });
-      const response = await fetch(`${makeURL('/api/v1/show/cues')}?${params}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (response.ok) {
-        await this.loadCues();
-        toast.success('Deleted cue!');
-        return true;
-      }
-      toast.error('Unable to delete cue');
-      return false;
+      return this.sendCueChange(
+        () =>
+          fetch(`${makeURL('/api/v1/show/cues')}?${params}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        { success: 'Deleted cue!', error: 'Unable to delete cue' }
+      );
     },
 
     async addCueGroup(payload: {
@@ -413,18 +450,15 @@ export const useScriptStore = defineStore('script', {
       lineId: number;
       cues: { ident: string; sortOrder: number }[];
     }): Promise<boolean> {
-      const response = await fetch(makeURL('/api/v1/show/cues/groups'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) {
-        await this.loadCues();
-        toast.success('Added cue group!');
-        return true;
-      }
-      toast.error('Unable to add cue group');
-      return false;
+      return this.sendCueChange(
+        () =>
+          fetch(makeURL('/api/v1/show/cues/groups'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }),
+        { success: 'Added cue group!', error: 'Unable to add cue group' }
+      );
     },
 
     async editCueGroup(payload: {
@@ -433,18 +467,15 @@ export const useScriptStore = defineStore('script', {
       lineId: number;
       cues: { id?: number; ident: string; sortOrder: number }[];
     }): Promise<boolean> {
-      const response = await fetch(makeURL('/api/v1/show/cues/groups'), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) {
-        await this.loadCues();
-        toast.success('Edited cue group!');
-        return true;
-      }
-      toast.error('Unable to edit cue group');
-      return false;
+      return this.sendCueChange(
+        () =>
+          fetch(makeURL('/api/v1/show/cues/groups'), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }),
+        { success: 'Edited cue group!', error: 'Unable to edit cue group' }
+      );
     },
 
     async deleteCueGroup(payload: { groupId: number; lineId: number }): Promise<boolean> {
@@ -452,16 +483,10 @@ export const useScriptStore = defineStore('script', {
         groupId: String(payload.groupId),
         lineId: String(payload.lineId),
       });
-      const response = await fetch(`${makeURL('/api/v1/show/cues/groups')}?${params}`, {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        await this.loadCues();
-        toast.success('Deleted cue group!');
-        return true;
-      }
-      toast.error('Unable to delete cue group');
-      return false;
+      return this.sendCueChange(
+        () => fetch(`${makeURL('/api/v1/show/cues/groups')}?${params}`, { method: 'DELETE' }),
+        { success: 'Deleted cue group!', error: 'Unable to delete cue group' }
+      );
     },
 
     async searchCues(payload: {

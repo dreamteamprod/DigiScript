@@ -211,6 +211,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, useId, watch } from 'vue';
+import log from 'loglevel';
 import CueTypePicker from '@/components/show/config/cues/CueTypePicker.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useCueDisplay } from '@/composables/useCueDisplay';
@@ -247,6 +248,8 @@ const emit = defineEmits<{
   'switch-single': [];
   /** Whether the card holds changes that would be lost if it closed. */
   dirty: [value: boolean];
+  /** The group was changed by someone else while this card holds unsaved changes. */
+  stale: [];
   /** This card has its own change request in flight (so a reload it causes is not "someone else"). */
   busy: [value: boolean];
 }>();
@@ -265,10 +268,12 @@ let nextKey = 1;
 const toMembers = (cues: readonly Cue[] | undefined): Member[] =>
   (cues ?? []).map((c) => ({ key: nextKey++, id: c.id, ident: c.ident ?? '' }));
 
-const initialMembers = toMembers(props.groupCues);
-const initialLabel = props.group?.label_override ?? '';
-const members = ref<Member[]>(initialMembers.map((m) => ({ ...m })));
-const labelOverride = ref(initialLabel);
+// What the card was opened on: `dirty` is measured against it, and it is replaced if the group
+// changes underneath an unedited card.
+const initialMembers = ref<Member[]>(toMembers(props.groupCues));
+const initialLabel = ref(props.group?.label_override ?? '');
+const members = ref<Member[]>(initialMembers.value.map((m) => ({ ...m })));
+const labelOverride = ref(initialLabel.value);
 const rangeFrom = ref('');
 const fromTouched = ref(false);
 const rangeTo = ref('');
@@ -418,13 +423,36 @@ const dirty = computed(() => {
   if (props.mode === 'add') {
     return members.value.length > 0 || labelOverride.value.trim() !== '';
   }
-  if (labelOverride.value.trim() !== initialLabel.trim()) return true;
-  if (members.value.length !== initialMembers.length) return true;
+  if (labelOverride.value.trim() !== initialLabel.value.trim()) return true;
+  if (members.value.length !== initialMembers.value.length) return true;
   return members.value.some(
-    (m, i) => m.id !== initialMembers[i].id || m.ident.trim() !== initialMembers[i].ident
+    (m, i) =>
+      m.id !== initialMembers.value[i].id || m.ident.trim() !== initialMembers.value[i].ident
   );
 });
 watch(dirty, (value) => emit('dirty', value), { immediate: true });
+
+// Someone else changed this group while the card was open. If nothing here has been edited,
+// show the new group so Save cannot send the old membership back over their change; if it
+// has, say so instead of silently overwriting either side.
+watch(
+  () =>
+    JSON.stringify([
+      props.group?.label_override ?? '',
+      (props.groupCues ?? []).map((c) => [c.id, c.ident, c.sort_order]),
+    ]),
+  () => {
+    if (props.mode !== 'edit' || submitting.value) return;
+    if (dirty.value) {
+      emit('stale');
+      return;
+    }
+    initialMembers.value = toMembers(props.groupCues);
+    initialLabel.value = props.group?.label_override ?? '';
+    members.value = initialMembers.value.map((m) => ({ ...m }));
+    labelOverride.value = initialLabel.value;
+  }
+);
 
 const primaryLabel = computed(() => {
   if (props.mode === 'edit') return submitting.value ? 'Saving…' : 'Save Group';
@@ -442,8 +470,9 @@ async function submit(): Promise<void> {
   error.value = null;
   const label = previewLabel.value;
   const label_override = labelOverride.value.trim();
+  let ok = false;
   try {
-    const ok =
+    ok =
       props.mode === 'add'
         ? await scriptStore.addCueGroup({
             cueTypeId: typeId,
@@ -461,8 +490,11 @@ async function submit(): Promise<void> {
               sortOrder: i,
             })),
           });
-    if (!ok) throw new Error('rejected');
-  } catch {
+  } catch (err) {
+    // The store reports a failed request as `false`; a throw here is unexpected.
+    log.error('Unable to change the cues', err);
+  }
+  if (!ok) {
     error.value = `${label} was not ${props.mode === 'add' ? 'added' : 'saved'}. Your entries are still here, so you can try again.`;
     submitting.value = false;
     emit('busy', false);
@@ -484,13 +516,17 @@ async function onDelete(): Promise<void> {
   submitting.value = true;
   emit('busy', true);
   error.value = null;
+  let ok = false;
   try {
-    const ok = await scriptStore.deleteCueGroup({
+    ok = await scriptStore.deleteCueGroup({
       groupId: props.group.id,
       lineId: props.line.id as number,
     });
-    if (!ok) throw new Error('rejected');
-  } catch {
+  } catch (err) {
+    // The store reports a failed request as `false`; a throw here is unexpected.
+    log.error('Unable to change the cues', err);
+  }
+  if (!ok) {
     error.value = `${previewLabel.value} was not deleted. Please try again.`;
     submitting.value = false;
     emit('busy', false);

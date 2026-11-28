@@ -1,6 +1,8 @@
+/* eslint-disable vue/one-component-per-file -- small inline stubs */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
+import { defineComponent, h } from 'vue';
 import CueEditor from './CueEditor.vue';
 import CueEmptyState from './CueEmptyState.vue';
 import CueToolbar from './CueToolbar.vue';
@@ -19,9 +21,33 @@ enableAutoUnmount(afterEach);
 const confirmMock = vi.fn();
 vi.mock('@/composables/useConfirm', () => ({ useConfirm: () => ({ confirm: confirmMock }) }));
 const toastSuccess = vi.fn();
+const toastError = vi.fn();
 vi.mock('@/js/toast', () => ({
-  toast: { success: (m: string) => toastSuccess(m), error: vi.fn() },
+  toast: { success: (m: string) => toastSuccess(m), error: (m: string) => toastError(m) },
 }));
+
+/** Stands in for the page-number box and the Go to Page dialog. */
+const PageInputStub = defineComponent({
+  props: { modelValue: { type: [Number, String], default: '' } },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    return () =>
+      h('input', {
+        'data-test': 'page-input',
+        value: props.modelValue,
+        onInput: (e: Event) =>
+          emit('update:modelValue', Number((e.target as HTMLInputElement).value)),
+      });
+  },
+});
+const modalHide = vi.fn();
+const ModalStub = defineComponent({
+  emits: ['ok'],
+  setup(_, { expose, slots }) {
+    expose({ show: vi.fn(), hide: modalHide });
+    return () => h('div', { 'data-test': 'modal' }, slots.default?.());
+  },
+});
 
 const LX = { id: 1, show_id: 1, prefix: 'LX', description: 'Lighting', colour: '#ffd23f' };
 const SND = { id: 2, show_id: 1, prefix: 'SND', description: 'Sound', colour: '#2563c9' };
@@ -59,12 +85,13 @@ function setup(options: { cueTypes?: unknown[]; admin?: boolean; live?: boolean 
     'getCueTypes',
     'getShowSessionData',
   ]);
-  quiet(scriptStore, ['loadCues', 'getCuts', 'getStageDirectionStyles']);
+  quiet(scriptStore, ['getCuts', 'getStageDirectionStyles']);
+  vi.spyOn(scriptStore, 'loadCues').mockResolvedValue(true);
   vi.spyOn(scriptStore, 'getMaxPage').mockImplementation(async () => {
     scriptStore.maxPage = 3;
     return true;
   });
-  const loadPage = vi.spyOn(scriptStore, 'loadScriptPage').mockResolvedValue(undefined);
+  const loadPage = vi.spyOn(scriptStore, 'loadScriptPage').mockResolvedValue(true);
 
   showStore.cueTypes = cueTypes as never;
   showStore.currentSession = live ? ({ id: 1 } as never) : null;
@@ -84,10 +111,10 @@ async function mountEditor() {
         BRow: passthrough('div'),
         BCol: passthrough('div'),
         BSpinner: true,
-        BModal: true,
-        BForm: true,
-        BFormGroup: true,
-        BFormInput: true,
+        BModal: ModalStub,
+        BForm: passthrough('div'),
+        BFormGroup: passthrough('div'),
+        BFormInput: PageInputStub,
         CueToolbar: true,
         ScriptLineCueEditor: true,
       },
@@ -106,6 +133,8 @@ describe('CueEditor', () => {
     setActivePinia(createPinia());
     confirmMock.mockReset();
     toastSuccess.mockReset();
+    toastError.mockReset();
+    modalHide.mockReset();
     localStorage.clear();
   });
 
@@ -373,5 +402,234 @@ describe('CueEditor', () => {
     toolbar(w).vm.$emit('next');
     await flushPromises();
     expect(toolbar(w).props('currentPage')).toBe(3);
+  });
+});
+
+type Editor = Awaited<ReturnType<typeof mountEditor>>;
+const lineProps = (w: Editor) =>
+  w.findAllComponents(ScriptLineCueEditor).map((c) => ({
+    id: (c.props('line') as ScriptLine).id,
+    uid: c.vm.$.uid,
+  }));
+
+describe('CueEditor paging, loading and vanished lines', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    confirmMock.mockReset();
+    toastSuccess.mockReset();
+    toastError.mockReset();
+    modalHide.mockReset();
+    localStorage.clear();
+  });
+
+  it('restores the remembered page', async () => {
+    localStorage.setItem('cueEditPage', '2');
+    setup();
+    const w = await mountEditor();
+
+    expect(toolbar(w).props('currentPage')).toBe(2);
+  });
+
+  it('clamps a remembered page that is past the end of the script', async () => {
+    localStorage.setItem('cueEditPage', '99');
+    const { loadPage } = setup();
+    const w = await mountEditor();
+
+    expect(toolbar(w).props('currentPage')).toBe(3);
+    expect(loadPage).toHaveBeenCalledWith(3);
+    expect(loadPage).not.toHaveBeenCalledWith(99);
+  });
+
+  it.each(['0', '-4', 'abc', ''])('treats a remembered page of %j as page 1', async (stored) => {
+    localStorage.setItem('cueEditPage', stored);
+    setup();
+    const w = await mountEditor();
+
+    expect(toolbar(w).props('currentPage')).toBe(1);
+  });
+
+  it('Go to Page clamps a number past the end, and closes the dialog once it has loaded', async () => {
+    const { loadPage } = setup();
+    const w = await mountEditor();
+    await w.find('[data-test="page-input"]').setValue('99');
+    loadPage.mockClear();
+
+    w.findComponent(ModalStub).vm.$emit('ok', { preventDefault: vi.fn() });
+    await flushPromises();
+
+    expect(toolbar(w).props('currentPage')).toBe(3);
+    expect(loadPage).toHaveBeenCalledWith(3);
+    expect(loadPage).not.toHaveBeenCalledWith(99);
+    expect(modalHide).toHaveBeenCalledTimes(1);
+  });
+
+  it('Go to Page keeps the dialog open and says so when the page cannot be loaded', async () => {
+    const { loadPage } = setup();
+    const w = await mountEditor();
+    await w.find('[data-test="page-input"]').setValue('2');
+    loadPage.mockImplementation(async (page) => page !== 2);
+
+    w.findComponent(ModalStub).vm.$emit('ok', { preventDefault: vi.fn() });
+    await flushPromises();
+
+    expect(toolbar(w).props('currentPage')).toBe(1);
+    expect(toolbar(w).props('busy')).toBe(false);
+    expect(modalHide).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith('Could not load page 2.');
+  });
+
+  it('Next stays on the page, says so, and is not left busy when the next page cannot be loaded', async () => {
+    const { scriptStore, loadPage } = setup();
+    const w = await mountEditor();
+    scriptStore.script = { '1': [line(1, 1), line(2, 1)] };
+    loadPage.mockResolvedValue(false);
+
+    toolbar(w).vm.$emit('next');
+    await flushPromises();
+
+    expect(toolbar(w).props('currentPage')).toBe(1);
+    expect(toolbar(w).props('busy')).toBe(false);
+    expect(toastError).toHaveBeenCalledWith('Could not load page 2.');
+  });
+
+  it('a jump to a page that will not load says so instead of claiming success', async () => {
+    const { loadPage } = setup();
+    const w = await mountEditor();
+    loadPage.mockImplementation(async (page) => page !== 2);
+
+    toolbar(w).vm.$emit('jump', {
+      cue: { id: 5, ident: '14', cue_type_id: 1 },
+      cue_type: LX,
+      location: { page: 2, line_id: 3, act_id: 1, scene_id: 1 },
+    } as FindMatch);
+    await flushPromises();
+
+    expect(toastError).toHaveBeenCalledWith('Could not load page 2.');
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(toolbar(w).props('busy')).toBe(false);
+    expect(toolbar(w).props('currentPage')).toBe(1);
+  });
+
+  it('a jump to a cue that has no page says so', async () => {
+    setup();
+    const w = await mountEditor();
+
+    toolbar(w).vm.$emit('jump', {
+      cue: { id: 5, ident: '14', cue_type_id: 1 },
+      cue_type: LX,
+      location: { page: null, line_id: 3, act_id: 1, scene_id: 1 },
+    } as FindMatch);
+    await flushPromises();
+
+    expect(toastError).toHaveBeenCalledWith('That cue is not on a page that can be shown.');
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it('stops marking the jumped-to line after two seconds', async () => {
+    setup();
+    const w = await mountEditor();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      toolbar(w).vm.$emit('jump', {
+        cue: { id: 5, ident: '14', cue_type_id: 1 },
+        cue_type: LX,
+        location: { page: 2, line_id: 3, act_id: 1, scene_id: 1 },
+      } as FindMatch);
+      await flushPromises();
+      expect(firstLine(w).props('highlightLineId')).toBe(3);
+
+      vi.advanceTimersByTime(1900);
+      await flushPromises();
+      expect(firstLine(w).props('highlightLineId')).toBe(3);
+
+      vi.advanceTimersByTime(200);
+      await flushPromises();
+      expect(firstLine(w).props('highlightLineId')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says the cues could not be loaded, with Try Again, instead of showing an empty script', async () => {
+    const { scriptStore } = setup();
+    const loadCues = vi.spyOn(scriptStore, 'loadCues').mockResolvedValue(false);
+    const w = await mountEditor();
+
+    expect(w.find('[role="alert"]').text()).toContain('could not be loaded');
+    expect(toolbar(w).exists()).toBe(false);
+    expect(w.findComponent(CueEmptyState).exists()).toBe(false);
+
+    loadCues.mockResolvedValue(true);
+    await w.find('[role="alert"] button').trigger('click');
+    await flushPromises();
+
+    expect(w.find('[role="alert"]').exists()).toBe(false);
+    expect(toolbar(w).exists()).toBe(true);
+  });
+
+  it('also reports a load error when the first page cannot be loaded', async () => {
+    const { loadPage } = setup();
+    loadPage.mockResolvedValue(false);
+    const w = await mountEditor();
+
+    expect(w.find('[role="alert"]').exists()).toBe(true);
+    expect(toolbar(w).exists()).toBe(false);
+  });
+
+  it('closes the card and says so when someone else’s edit replaces its line', async () => {
+    const { scriptStore } = setup();
+    const w = await mountEditor();
+    firstLine(w).vm.$emit('open', { lineId: 2, kind: 'add' }, null);
+    await flushPromises();
+    firstLine(w).vm.$emit('dirty', true);
+    await flushPromises();
+
+    // The line was edited elsewhere, so it now has a new id.
+    scriptStore.script = { ...scriptStore.script, '1': [line(1, 1), line(7, 1)] };
+    await flushPromises();
+
+    expect(firstLine(w).props('activeCard')).toBeNull();
+    expect(w.text()).toContain(
+      'The line you were working on was changed or removed by someone else, so the card was closed.'
+    );
+    // The unsaved-group flag went with it: leaving the page does not ask.
+    toolbar(w).vm.$emit('next');
+    await flushPromises();
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(toolbar(w).props('currentPage')).toBe(2);
+  });
+
+  it('leaves the card alone while its line is still on the page, and while the page is reloading', async () => {
+    const { scriptStore } = setup();
+    const w = await mountEditor();
+    firstLine(w).vm.$emit('open', { lineId: 2, kind: 'add' }, null);
+    await flushPromises();
+
+    scriptStore.script = { ...scriptStore.script, '1': [line(1, 1), line(2, 1), line(8, 1)] };
+    await flushPromises();
+    expect(firstLine(w).props('activeCard')).toEqual({ lineId: 2, kind: 'add' });
+
+    // A page that is momentarily empty (mid-reload) must not be read as "the line is gone":
+    // once the lines are back, the card is still open on its line.
+    scriptStore.script = { ...scriptStore.script, '1': [] };
+    await flushPromises();
+    scriptStore.script = { ...scriptStore.script, '1': [line(1, 1), line(2, 1)] };
+    await flushPromises();
+    expect(firstLine(w).props('activeCard')).toEqual({ lineId: 2, kind: 'add' });
+  });
+
+  it('keys lines by id, so a line inserted above keeps the other lines’ state', async () => {
+    const { scriptStore } = setup();
+    const w = await mountEditor();
+    const before = lineProps(w);
+
+    scriptStore.script = { ...scriptStore.script, '1': [line(9, 1), line(1, 1), line(2, 1)] };
+    await flushPromises();
+    const after = lineProps(w);
+
+    for (const kept of [1, 2]) {
+      expect(after.find((l) => l.id === kept)!.uid).toBe(before.find((l) => l.id === kept)!.uid);
+    }
+    expect(after.map((l) => l.id)).toEqual([9, 1, 2]);
   });
 });

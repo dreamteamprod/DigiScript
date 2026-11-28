@@ -1,4 +1,5 @@
 import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
+import log from 'loglevel';
 import { createPinia, setActivePinia } from 'pinia';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import CueCard from './CueCard.vue';
@@ -405,5 +406,163 @@ describe('CueCard (view only)', () => {
     expect(w.find('[role="note"]').text()).toContain('VID 1 · Video');
     expect(w.text()).toContain('View only. You do not have permission to change VID cues.');
     expect(w.findAll('button')).toHaveLength(0);
+  });
+});
+
+describe('CueCard (changed elsewhere, logging and Enter)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    confirmMock.mockReset();
+  });
+
+  const base = cue(2, 1, '14');
+  const mountEdit = () =>
+    mount(CueCard, {
+      props: { mode: 'edit', line: L3, lineLabel: 'Hello there', cue: base, typeId: null },
+      attachTo: document.body,
+    });
+  const numberValue = (w: ReturnType<typeof mountEdit>) =>
+    (w.find('input.cue-number-input').element as HTMLInputElement).value;
+
+  it('shows the new number, rather than saving the old one back, when nothing was typed', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+
+    await w.setProps({ cue: cue(2, 1, '15') });
+
+    expect(numberValue(w)).toBe('15');
+    expect(w.emitted('stale')).toBeUndefined();
+  });
+
+  it('follows a change of type too when nothing was edited', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+
+    await w.setProps({ cue: cue(2, 2, '14') });
+
+    const checked = w
+      .findAll('[role="radio"]')
+      .find((r) => r.attributes('aria-checked') === 'true');
+    expect(checked?.text()).toContain('SND');
+  });
+
+  it('says so, and keeps what was typed, when the cue changes under unsaved edits', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('99');
+
+    await w.setProps({ cue: cue(2, 1, '15') });
+
+    expect(w.emitted('stale')).toHaveLength(1);
+    expect(numberValue(w)).toBe('99');
+  });
+
+  it('does not treat a reload that changed nothing as someone else\u2019s edit', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('99');
+
+    await w.setProps({ cue: cue(2, 1, '14') });
+
+    expect(w.emitted('stale')).toBeUndefined();
+    expect(numberValue(w)).toBe('99');
+  });
+
+  it('ignores the reload caused by its own save', async () => {
+    const { scriptStore } = setup();
+    let release: (value: boolean) => void = () => {};
+    vi.spyOn(scriptStore, 'editCue').mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        release = resolve;
+      })
+    );
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('15');
+    await buttonByText(w as never, 'Save Cue')!.trigger('click');
+
+    await w.setProps({ cue: cue(2, 1, '15') });
+    release(true);
+    await flushPromises();
+
+    expect(w.emitted('stale')).toBeUndefined();
+    expect(w.emitted('done')).toHaveLength(1);
+  });
+
+  it('logs an unexpected failure instead of swallowing it, and keeps the card', async () => {
+    const { scriptStore } = setup();
+    const logError = vi.spyOn(log, 'error').mockImplementation(() => {});
+    const failure = new Error('boom');
+    vi.spyOn(scriptStore, 'editCue').mockRejectedValue(failure);
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('15');
+
+    await buttonByText(w as never, 'Save Cue')!.trigger('click');
+    await flushPromises();
+
+    expect(logError).toHaveBeenCalledWith('Unable to change the cues', failure);
+    expect(w.emitted('done')).toBeUndefined();
+    expect(w.find('[role="alert"]').text()).toContain('was not saved');
+  });
+
+  it('Enter in the number field saves a changed cue', async () => {
+    const { scriptStore } = setup();
+    const edit = vi.spyOn(scriptStore, 'editCue').mockResolvedValue(true);
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('15');
+
+    await w.find('input.cue-number-input').trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+
+    expect(edit).toHaveBeenCalledTimes(1);
+  });
+
+  it('Enter does nothing when nothing has changed', async () => {
+    const { scriptStore } = setup();
+    const edit = vi.spyOn(scriptStore, 'editCue').mockResolvedValue(true);
+    const w = mountEdit();
+    await flushPromises();
+
+    await w.find('input.cue-number-input').trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('Enter does nothing during a live session', async () => {
+    const { scriptStore } = setup({ live: true });
+    const edit = vi.spyOn(scriptStore, 'editCue').mockResolvedValue(true);
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('15');
+
+    await w.find('input.cue-number-input').trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+
+    expect(edit).not.toHaveBeenCalled();
+  });
+
+  it('a view-only note for a group names the group, not one of its cues', async () => {
+    setup({ admin: false, writable: [1] });
+    const w = mount(CueCard, {
+      props: {
+        mode: 'view',
+        line: L3,
+        lineLabel: 'x',
+        cue: cue(5, 3, '1'),
+        groupLabel: 'VID - Storm build',
+        typeId: null,
+      },
+    });
+    await flushPromises();
+
+    expect(w.find('[role="note"]').text()).toContain('VID - Storm build · Video');
+    expect(w.find('[role="note"]').text()).not.toContain('VID 1');
   });
 });

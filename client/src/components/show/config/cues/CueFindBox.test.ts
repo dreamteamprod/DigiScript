@@ -36,7 +36,7 @@ function setup(respond: (arg: { identifier: string; cueTypeId: number }) => Find
       } as never,
     ],
   };
-  vi.spyOn(scriptStore, 'loadScriptPage').mockResolvedValue(undefined);
+  vi.spyOn(scriptStore, 'loadScriptPage').mockResolvedValue(true);
   const search = vi.spyOn(scriptStore, 'searchCues').mockImplementation(async (arg) => {
     const result = respond(arg);
     if (result instanceof Error) throw result;
@@ -169,7 +169,7 @@ describe('CueFindBox', () => {
       const showStore = useShowStore();
       const scriptStore = useScriptStore();
       showStore.cueTypes = [LX, SND];
-      vi.spyOn(scriptStore, 'loadScriptPage').mockResolvedValue(undefined);
+      vi.spyOn(scriptStore, 'loadScriptPage').mockResolvedValue(true);
       vi.spyOn(scriptStore, 'searchCues').mockImplementation(
         ({ identifier }) =>
           new Promise((resolve) => {
@@ -226,6 +226,54 @@ describe('CueFindBox', () => {
       await type(w, 'LX');
 
       expect(w.find('.find-panel').exists()).toBe(false);
+    });
+
+    it('an outside click drops a search that is still waiting', async () => {
+      const { search } = setup(() => empty);
+      const w = mount(CueFindBox, { attachTo: document.body });
+
+      await type(w, 'LX 14');
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      await settle(1000);
+
+      expect(search).not.toHaveBeenCalled();
+    });
+
+    it('an outside click closes the list, and a search still on its way cannot reopen it', async () => {
+      let release: () => void = () => {};
+      const showStore = useShowStore();
+      const scriptStore = useScriptStore();
+      showStore.cueTypes = [LX, SND];
+      vi.spyOn(scriptStore, 'loadScriptPage').mockResolvedValue(true);
+      vi.spyOn(scriptStore, 'searchCues').mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            release = () =>
+              resolve({ exact_matches: [match(1, '14', 4)], suggestions: [] } as never);
+          })
+      );
+      const w = mount(CueFindBox, { attachTo: document.body });
+      await type(w, 'LX 14');
+      await settle();
+
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      release();
+      await flushPromises();
+
+      expect(w.find('.find-panel').exists()).toBe(false);
+    });
+
+    it('clicking inside the box does not close the list', async () => {
+      setup(() => ({ exact_matches: [match(1, '14', 4)], suggestions: [] }));
+      const w = mount(CueFindBox, { attachTo: document.body });
+      await type(w, 'LX 14');
+      await settle();
+      expect(w.find('.find-panel').exists()).toBe(true);
+
+      w.find('input').element.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      await flushPromises();
+
+      expect(w.find('.find-panel').exists()).toBe(true);
     });
 
     it('Escape drops a search that is still waiting', async () => {

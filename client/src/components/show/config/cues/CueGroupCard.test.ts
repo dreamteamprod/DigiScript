@@ -1,4 +1,5 @@
 import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
+import log from 'loglevel';
 import { createPinia, setActivePinia } from 'pinia';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import CueGroupCard from './CueGroupCard.vue';
@@ -425,5 +426,163 @@ describe('CueGroupCard (edit)', () => {
     // Every cue keeps its own name and arrows, so the whole list is usable by keyboard.
     expect(w.find('[aria-label="Move cue 100 earlier"]').exists()).toBe(true);
     expect(w.find('[aria-label="Cue 100 of 100"]').exists()).toBe(true);
+  });
+});
+
+describe('CueGroupCard (changed elsewhere, drag and drop, failures)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    confirmMock.mockReset();
+  });
+
+  const group: CueGroup = { id: 7, cue_type_id: 1, label_override: 'Storm build' };
+  const member = (id: number, ident: string, order: number): Cue => ({
+    id,
+    cue_type_id: 1,
+    ident,
+    group_id: 7,
+    sort_order: order,
+    line_position: 1,
+  });
+  const members = [member(70, '15', 0), member(71, '16', 1), member(72, '17', 2)];
+  const mountEdit = () =>
+    mount(CueGroupCard, {
+      props: {
+        mode: 'edit',
+        line: LINE,
+        lineLabel: 'Hello there',
+        group,
+        groupCues: members,
+        typeId: null,
+      },
+      attachTo: document.body,
+    });
+
+  it('shows the new group, rather than saving the old one back, when nothing was edited', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+
+    await w.setProps({
+      group: { ...group, label_override: 'Big storm' },
+      groupCues: [...members, member(73, '18', 3)],
+    });
+
+    expect(memberValues(w as never)).toEqual(['15', '16', '17', '18']);
+    expect((w.find('input[maxlength="100"]').element as HTMLInputElement).value).toBe('Big storm');
+    expect(w.emitted('stale')).toBeUndefined();
+    // The card's idea of "unchanged" moved with it.
+    expect(w.emitted('dirty')?.at(-1)).toEqual([false]);
+  });
+
+  it('says so, and keeps the edits, when the group changes under unsaved changes', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('[aria-label="Move cue 15 later"]').trigger('click');
+
+    await w.setProps({ groupCues: [...members, member(73, '18', 3)] });
+
+    expect(w.emitted('stale')).toHaveLength(1);
+    expect(memberValues(w as never)).toEqual(['16', '15', '17']);
+  });
+
+  it('does not treat a reload that changed nothing as someone else\u2019s edit', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('[aria-label="Move cue 15 later"]').trigger('click');
+
+    await w.setProps({ groupCues: members.map((m) => ({ ...m })) });
+
+    expect(w.emitted('stale')).toBeUndefined();
+  });
+
+  it('ignores the reload caused by its own save', async () => {
+    const { scriptStore } = setup();
+    let release: (value: boolean) => void = () => {};
+    vi.spyOn(scriptStore, 'editCueGroup').mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        release = resolve;
+      })
+    );
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('[aria-label="Move cue 15 later"]').trigger('click');
+    await button(w as never, 'Save Group')!.trigger('click');
+
+    await w.setProps({ groupCues: [members[1], members[0], members[2]].map((m) => ({ ...m })) });
+    release(true);
+    await flushPromises();
+
+    expect(w.emitted('stale')).toBeUndefined();
+    expect(w.emitted('done')).toHaveLength(1);
+  });
+
+  it('reorders by dragging one cue onto another', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+    const tiles = w.findAll('.member-tile');
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' };
+
+    await tiles[0].find('.member-handle').trigger('dragstart', { dataTransfer });
+    await tiles[2].trigger('dragover');
+    expect(tiles[2].classes()).toContain('member-over');
+    await tiles[2].trigger('drop');
+
+    expect(memberValues(w as never)).toEqual(['16', '17', '15']);
+    expect(w.emitted('dirty')?.at(-1)).toEqual([true]);
+    expect(w.findAll('.member-over')).toHaveLength(0);
+  });
+
+  it('dropping a cue on itself, or ending the drag early, changes nothing', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+    const tiles = w.findAll('.member-tile');
+    const dataTransfer = { setData: vi.fn(), effectAllowed: '' };
+
+    await tiles[1].find('.member-handle').trigger('dragstart', { dataTransfer });
+    await tiles[1].trigger('drop');
+    expect(memberValues(w as never)).toEqual(['15', '16', '17']);
+
+    await tiles[0].find('.member-handle').trigger('dragstart', { dataTransfer });
+    await tiles[0].find('.member-handle').trigger('dragend');
+    await tiles[2].trigger('drop');
+    expect(memberValues(w as never)).toEqual(['15', '16', '17']);
+  });
+
+  it('keeps the card and every edit when saving an edited group fails', async () => {
+    const { scriptStore } = setup();
+    vi.spyOn(scriptStore, 'editCueGroup').mockResolvedValue(false);
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('[aria-label="Move cue 15 later"]').trigger('click');
+
+    await button(w as never, 'Save Group')!.trigger('click');
+    await flushPromises();
+
+    expect(w.emitted('done')).toBeUndefined();
+    expect(w.find('[role="alert"]').text()).toContain('was not saved');
+    expect(memberValues(w as never)).toEqual(['16', '15', '17']);
+    expect(button(w as never, 'Save Group')!.attributes('disabled')).toBeUndefined();
+  });
+
+  it('logs an unexpected failure instead of swallowing it', async () => {
+    const { scriptStore } = setup();
+    const logError = vi.spyOn(log, 'error').mockImplementation(() => {});
+    const failure = new Error('boom');
+    vi.spyOn(scriptStore, 'deleteCueGroup').mockRejectedValue(failure);
+    confirmMock.mockResolvedValue(true);
+    const w = mountEdit();
+    await flushPromises();
+
+    await button(w as never, 'Delete Group')!.trigger('click');
+    await flushPromises();
+
+    expect(logError).toHaveBeenCalledWith('Unable to change the cues', failure);
+    expect(w.find('[role="alert"]').text()).toContain('was not deleted');
+    expect(w.emitted('done')).toBeUndefined();
   });
 });

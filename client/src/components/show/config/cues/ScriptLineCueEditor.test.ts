@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount } from '@vue/test-utils';
+import CueCard from './CueCard.vue';
 import ScriptLineCueEditor from './ScriptLineCueEditor.vue';
 import { passthrough } from '@/components/show/config/script/testStubs';
 import { useScriptStore } from '@/stores/script';
@@ -527,5 +528,138 @@ describe('ScriptLineCueEditor and the card\u2019s own changes', () => {
     expect(w.emitted('close-card')).toBeUndefined();
     expect(w.emitted('target-gone')).toBeUndefined();
     expect(w.find('[role="alert"]').text()).toContain('was not deleted');
+  });
+});
+
+describe('ScriptLineCueEditor default cue type, view-only groups and changed cues', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    confirmMock.mockReset();
+    localStorage.clear();
+  });
+
+  const dialogue = () => line(1, LINE_TYPES.DIALOGUE, 1, 'Hello');
+  const addCard = { lineId: 1, kind: 'add' } as const;
+  const chosenType = (w: ReturnType<typeof mountLine>) => w.findComponent(CueCard).props('typeId');
+
+  it('starts the add card on the active filter when that type can be written', () => {
+    const w = mountLine(dialogue(), { activeCard: addCard, filterTypeId: 2 });
+
+    expect(chosenType(w)).toBe(2);
+  });
+
+  it('otherwise on the type last used', () => {
+    localStorage.setItem('cueEditType', '2');
+    const w = mountLine(dialogue(), { activeCard: addCard });
+
+    expect(chosenType(w)).toBe(2);
+  });
+
+  it('prefers the filter over the type last used', () => {
+    localStorage.setItem('cueEditType', '2');
+    const w = mountLine(dialogue(), { activeCard: addCard, filterTypeId: 1 });
+
+    expect(chosenType(w)).toBe(1);
+  });
+
+  it('otherwise on the only type that can be written', () => {
+    const w = mountLine(dialogue(), { activeCard: addCard, admin: false, writable: [1] });
+
+    expect(chosenType(w)).toBe(1);
+  });
+
+  it('skips a filter or a remembered type that cannot be written', () => {
+    localStorage.setItem('cueEditType', '2');
+    const w = mountLine(dialogue(), {
+      activeCard: addCard,
+      admin: false,
+      writable: [1],
+      filterTypeId: 2,
+    });
+
+    expect(chosenType(w)).toBe(1);
+  });
+
+  it('chooses nothing when several types could be used and nothing points at one', () => {
+    const w = mountLine(dialogue(), { activeCard: addCard });
+
+    expect(chosenType(w)).toBeNull();
+  });
+
+  it('ignores a remembered type that is not a number', () => {
+    localStorage.setItem('cueEditType', 'banana');
+    const w = mountLine(dialogue(), { activeCard: addCard });
+
+    expect(chosenType(w)).toBeNull();
+  });
+
+  const groupOnLine = () => {
+    const store = useScriptStore();
+    store.cues = {
+      '1': [
+        cueOn(7, 2, '10', { group_id: 9, sort_order: 0 }),
+        cueOn(8, 2, '11', { group_id: 9, sort_order: 1 }),
+      ],
+    };
+    store.cueGroups = [{ id: 9, cue_type_id: 2, label_override: 'Storm' }];
+  };
+
+  it('opens a view-only group with its own id, so the note can name it', async () => {
+    groupOnLine();
+    const w = mountLine(dialogue(), { admin: false, writable: [1] });
+
+    await w.find('.cue-group-btn').trigger('click');
+
+    expect(w.emitted('open')?.[0][0]).toEqual({
+      lineId: 1,
+      kind: 'view',
+      groupId: 9,
+      cueId: 7,
+    });
+  });
+
+  it('outlines a view-only group while its note is open, and the note names the group', async () => {
+    groupOnLine();
+    const w = mountLine(dialogue(), {
+      realCards: true,
+      admin: false,
+      writable: [1],
+      activeCard: { lineId: 1, kind: 'view', groupId: 9, cueId: 7 },
+    });
+    await flushPromises();
+
+    expect(w.find('.cue-group-btn').classes()).toContain('cue-selected');
+    expect(w.find('[role="note"]').text()).toContain('SND - Storm');
+    expect(w.find('[role="note"]').text()).not.toContain('SND 10');
+  });
+
+  it('reports a cue changed by someone else while the card holds unsaved changes', async () => {
+    const d = dialogue();
+    useScriptStore().cues = { '1': [cueOn(5, 1, '14')] };
+    const w = mountLine(d, {
+      realCards: true,
+      activeCard: { lineId: 1, kind: 'edit-cue', cueId: 5 },
+    });
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('99');
+
+    useScriptStore().cues = { '1': [cueOn(5, 1, '15')] };
+    await flushPromises();
+
+    expect(w.emitted('target-gone')).toHaveLength(1);
+  });
+
+  it('a card that went away mid-request does not leave the next one thinking it is busy', async () => {
+    const d = dialogue();
+    useScriptStore().cues = { '1': [cueOn(5, 1, '14')] };
+    const w = mountLine(d, { activeCard: { lineId: 1, kind: 'edit-cue', cueId: 5 } });
+    w.findComponent(CueCard).vm.$emit('busy', true);
+
+    await w.setProps({ activeCard: null });
+    await w.setProps({ activeCard: { lineId: 1, kind: 'edit-cue', cueId: 5 } });
+    useScriptStore().cues = { '1': [] };
+    await flushPromises();
+
+    expect(w.emitted('target-gone')).toHaveLength(1);
   });
 });

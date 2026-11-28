@@ -17,7 +17,7 @@ describe('canonicalDecimal', () => {
   });
 });
 
-describe('suggestCueNumber (HANDOFF 2.5 table)', () => {
+describe('suggestCueNumber', () => {
   // [before, after, also used, expected]
   const table: [string[], string[], string[], string | null][] = [
     [[], [], [], '1'],

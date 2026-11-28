@@ -143,6 +143,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, useId, watch } from 'vue';
+import log from 'loglevel';
 import CueTypePicker from '@/components/show/config/cues/CueTypePicker.vue';
 import { useConfirm } from '@/composables/useConfirm';
 import { useCueDisplay } from '@/composables/useCueDisplay';
@@ -162,6 +163,8 @@ const props = defineProps<{
   cue?: Cue | null;
   /** The type chosen in the add card, shared with the group card. */
   typeId: number | null;
+  /** For a view-only group: the group's label, shown in place of the sample cue's. */
+  groupLabel?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -172,6 +175,8 @@ const emit = defineEmits<{
   /** A cue was added; `stay` is true for "Add and Stay Open". */
   added: [typeId: number, stay: boolean];
   'switch-group': [];
+  /** What this card was editing has been changed by someone else while it holds changes. */
+  stale: [];
   /** This card has its own change request in flight (so a reload it causes is not "someone else"). */
   busy: [value: boolean];
 }>();
@@ -273,9 +278,29 @@ const duplicateText = computed(() => {
   return `${label} is already used${where}. You can still save.`;
 });
 
+// ── The cue changed under us ────────────────────────────────────────────────
+
+// Someone else edited this cue while the card was open. Keep what the person has typed if they
+// have typed anything (and say so); otherwise show the new values so Save cannot send old ones.
+watch(
+  () => [props.cue?.ident ?? '', props.cue?.cue_type_id ?? null] as const,
+  ([newIdent, newType], [oldIdent, oldType]) => {
+    if (props.mode !== 'edit' || submitting.value) return;
+    // A reload hands over fresh objects; only an actual difference is someone else's edit.
+    if (newIdent === oldIdent && newType === oldType) return;
+    const edited = trimmedIdent.value !== oldIdent || editTypeId.value !== oldType;
+    if (edited) {
+      emit('stale');
+      return;
+    }
+    ident.value = newIdent;
+    editTypeId.value = newType;
+  }
+);
+
 // ── View-only note ──────────────────────────────────────────────────────────
 
-const viewLabel = computed(() => (props.cue ? cueLabel(props.cue) : ''));
+const viewLabel = computed(() => props.groupLabel ?? (props.cue ? cueLabel(props.cue) : ''));
 const viewPrefix = computed(
   () => showStore.cueTypeById(props.cue?.cue_type_id ?? null)?.prefix ?? ''
 );
@@ -312,14 +337,18 @@ async function submitAdd(stay: boolean): Promise<void> {
   const label = `${typePrefix.value} ${trimmedIdent.value}`;
   submitting.value = true;
   error.value = null;
+  let ok = false;
   try {
-    const ok = await scriptStore.addNewCue({
+    ok = await scriptStore.addNewCue({
       cueType: typeId,
       ident: trimmedIdent.value,
       lineId: props.line.id as number,
     });
-    if (!ok) throw new Error('rejected');
-  } catch {
+  } catch (err) {
+    // The store reports a failed request as `false`; a throw here is unexpected.
+    log.error('Unable to change the cues', err);
+  }
+  if (!ok) {
     error.value = `${label} was not added. Your entry is still here, so you can try again.`;
     submitting.value = false;
     return;
@@ -344,15 +373,19 @@ async function submitEdit(): Promise<void> {
   submitting.value = true;
   emit('busy', true);
   error.value = null;
+  let ok = false;
   try {
-    const ok = await scriptStore.editCue({
+    ok = await scriptStore.editCue({
       cueId: props.cue.id,
       cueType: selectedTypeId.value,
       ident: trimmedIdent.value,
       lineId: props.line.id as number,
     });
-    if (!ok) throw new Error('rejected');
-  } catch {
+  } catch (err) {
+    // The store reports a failed request as `false`; a throw here is unexpected.
+    log.error('Unable to change the cues', err);
+  }
+  if (!ok) {
     error.value = `${editLabel.value} was not saved. Your entry is still here, so you can try again.`;
     submitting.value = false;
     emit('busy', false);
@@ -374,13 +407,17 @@ async function onDelete(): Promise<void> {
   submitting.value = true;
   emit('busy', true);
   error.value = null;
+  let ok = false;
   try {
-    const ok = await scriptStore.deleteCue({
+    ok = await scriptStore.deleteCue({
       cueId: props.cue.id,
       lineId: props.line.id as number,
     });
-    if (!ok) throw new Error('rejected');
-  } catch {
+  } catch (err) {
+    // The store reports a failed request as `false`; a throw here is unexpected.
+    log.error('Unable to change the cues', err);
+  }
+  if (!ok) {
     error.value = `${editLabel.value} was not deleted. Please try again.`;
     submitting.value = false;
     emit('busy', false);

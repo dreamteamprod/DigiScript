@@ -149,6 +149,9 @@ describe('script store saveCuts', () => {
 describe('script store cue loading and results', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.mocked(toast.success).mockClear();
+    vi.mocked(toast.error).mockClear();
+    vi.mocked(toast.warning).mockClear();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -161,6 +164,9 @@ describe('script store cue loading and results', () => {
   }
   const ok = (body: unknown) => ({ ok: true, json: async () => body });
   const failed = { ok: false, json: async () => ({}) };
+  const cuesBody = { cues: {}, cue_groups: [], line_positions: {} };
+  const isCuesRead = (url: string, init?: RequestInit) =>
+    /\/show\/cues$/.test(url) && (init?.method ?? 'GET') === 'GET';
 
   it('loadCues keeps line_positions and reports success', async () => {
     stubFetch(() =>
@@ -186,45 +192,163 @@ describe('script store cue loading and results', () => {
     expect(store.linePositions).toEqual({});
   });
 
-  it('loadCues reports failure and keeps what it had', async () => {
-    stubFetch(() => failed);
+  it('loadCues reports failure and keeps what it had, for a bad status and for a rejected request', async () => {
     const store = useScriptStore();
     store.linePositions = { '1': { page: 1, index: 0, act_id: 1, scene_id: 1 } };
 
+    stubFetch(() => failed);
     expect(await store.loadCues()).toBe(false);
+
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    await expect(store.loadCues()).resolves.toBe(false);
+
     expect(Object.keys(store.linePositions)).toEqual(['1']);
+    expect(store.cuesLoaded).toBe(false);
   });
 
-  it.each([
-    ['addNewCue', { cueType: 1, ident: '1', lineId: 1 }],
-    ['editCue', { cueId: 1, cueType: 1, ident: '1', lineId: 1 }],
-    ['deleteCue', { cueId: 1, lineId: 1 }],
-    ['addCueGroup', { cueTypeId: 1, lineId: 1, cues: [{ ident: '1', sortOrder: 0 }] }],
-    ['editCueGroup', { groupId: 1, lineId: 1, cues: [{ ident: '1', sortOrder: 0 }] }],
-    ['deleteCueGroup', { groupId: 1, lineId: 1 }],
-  ] as const)('%s reports success, and failure', async (action, payload) => {
+  it('an empty result still counts as loaded', async () => {
+    stubFetch(() => ok({ cues: {}, cue_groups: [], line_positions: {} }));
     const store = useScriptStore();
-    const call = (store as unknown as Record<string, (p: unknown) => Promise<boolean>>)[action];
+    expect(store.cuesLoaded).toBe(false);
 
-    stubFetch((url) => (url.includes('/cues') && !url.includes('?') ? ok({}) : ok({ cues: {} })));
-    expect(await call(payload)).toBe(true);
+    await store.loadCues();
+
+    expect(store.cuesLoaded).toBe(true);
+  });
+
+  it('loadScriptPage resolves true when loaded, false (never rejects) when not', async () => {
+    const store = useScriptStore();
+    stubFetch(() => ok({ page: 3, lines: [{ id: 1 }] }));
+    await expect(store.loadScriptPage(3)).resolves.toBe(true);
+    expect(store.script['3']).toEqual([{ id: 1 }]);
 
     stubFetch(() => failed);
-    expect(await call(payload)).toBe(false);
+    await expect(store.loadScriptPage(4)).resolves.toBe(false);
+
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    await expect(store.loadScriptPage(5)).resolves.toBe(false);
+    expect(store.script['4']).toBeUndefined();
+  });
+
+  // [action, payload, method, URL matcher, expected body (null for a DELETE)]
+  it.each([
+    ['addNewCue', { cueType: 1, ident: '1', lineId: 2 }, 'POST', /\/show\/cues$/, true],
+    ['editCue', { cueId: 3, cueType: 1, ident: '1', lineId: 2 }, 'PATCH', /\/show\/cues$/, true],
+    ['deleteCue', { cueId: 3, lineId: 2 }, 'DELETE', /\/show\/cues\?cueId=3&lineId=2$/, false],
+    [
+      'addCueGroup',
+      { cueTypeId: 1, lineId: 2, cues: [{ ident: '1', sortOrder: 0 }] },
+      'POST',
+      /\/show\/cues\/groups$/,
+      true,
+    ],
+    [
+      'editCueGroup',
+      { groupId: 4, lineId: 2, cues: [{ ident: '1', sortOrder: 0 }] },
+      'PATCH',
+      /\/show\/cues\/groups$/,
+      true,
+    ],
+    [
+      'deleteCueGroup',
+      { groupId: 4, lineId: 2 },
+      'DELETE',
+      /\/show\/cues\/groups\?groupId=4&lineId=2$/,
+      false,
+    ],
+  ] as const)(
+    '%s sends the right request, reloads, and reports success',
+    async (action, payload, method, urlPattern, hasBody) => {
+      const store = useScriptStore();
+      const call = (store as unknown as Record<string, (p: unknown) => Promise<boolean>>)[action];
+      const fetchMock = stubFetch((url, init) => (isCuesRead(url, init) ? ok(cuesBody) : ok({})));
+
+      await expect(call(payload)).resolves.toBe(true);
+
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toMatch(urlPattern);
+      expect(init.method).toBe(method);
+      if (hasBody) expect(JSON.parse(init.body as string)).toEqual(payload);
+      // The cues are read again afterwards, and the person is told it worked.
+      expect(fetchMock.mock.calls.some(([u, i]) => isCuesRead(String(u), i))).toBe(true);
+      expect(toast.success).toHaveBeenCalledTimes(1);
+      expect(toast.error).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    ['addNewCue', { cueType: 1, ident: '1', lineId: 2 }],
+    ['editCue', { cueId: 3, cueType: 1, ident: '1', lineId: 2 }],
+    ['deleteCue', { cueId: 3, lineId: 2 }],
+    ['addCueGroup', { cueTypeId: 1, lineId: 2, cues: [{ ident: '1', sortOrder: 0 }] }],
+    ['editCueGroup', { groupId: 4, lineId: 2, cues: [{ ident: '1', sortOrder: 0 }] }],
+    ['deleteCueGroup', { groupId: 4, lineId: 2 }],
+  ] as const)(
+    '%s reports failure, without reloading, when the server refuses or the request fails',
+    async (action, payload) => {
+      const store = useScriptStore();
+      const call = (store as unknown as Record<string, (p: unknown) => Promise<boolean>>)[action];
+
+      const fetchMock = stubFetch(() => failed);
+      await expect(call(payload)).resolves.toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+      await expect(call(payload)).resolves.toBe(false);
+
+      expect(toast.error).toHaveBeenCalledTimes(2);
+      expect(toast.success).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    ['addNewCue', { cueType: 1, ident: '1', lineId: 2 }],
+    ['editCue', { cueId: 3, cueType: 1, ident: '1', lineId: 2 }],
+    ['deleteCue', { cueId: 3, lineId: 2 }],
+    ['addCueGroup', { cueTypeId: 1, lineId: 2, cues: [{ ident: '1', sortOrder: 0 }] }],
+    ['editCueGroup', { groupId: 4, lineId: 2, cues: [{ ident: '1', sortOrder: 0 }] }],
+    ['deleteCueGroup', { groupId: 4, lineId: 2 }],
+  ] as const)(
+    '%s still reports success, with a warning, when the change is saved but the refresh fails',
+    async (action, payload) => {
+      const store = useScriptStore();
+      const call = (store as unknown as Record<string, (p: unknown) => Promise<boolean>>)[action];
+      // The write goes through; reading the cues back does not. Reporting this as a failure
+      // would let the person retry, and a retried add creates a duplicate.
+      stubFetch((url, init) => (isCuesRead(url, init) ? failed : ok({})));
+
+      await expect(call(payload)).resolves.toBe(true);
+
+      expect(toast.warning).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(toast.warning).mock.calls[0][0]).toContain('could not be refreshed');
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
+    }
+  );
+
+  it('still reports success when the refresh request itself rejects', async () => {
+    const store = useScriptStore();
+    stubFetch((url, init) => {
+      if (isCuesRead(url, init)) throw new TypeError('Failed to fetch');
+      return ok({});
+    });
+
+    await expect(store.addNewCue({ cueType: 1, ident: '1', lineId: 2 })).resolves.toBe(true);
+    expect(toast.warning).toHaveBeenCalledTimes(1);
   });
 
   it('reloads cue positions when a script page changes, once cues have been loaded', async () => {
     const fetchMock = stubFetch((url) =>
-      url.includes('/show/script?')
-        ? ok({ page: 1, lines: [] })
-        : ok({ cues: {}, cue_groups: [], line_positions: {} })
+      url.includes('/show/script?') ? ok({ page: 1, lines: [] }) : ok(cuesBody)
     );
     const store = useScriptStore();
 
     await store.scriptPageChanged({ page: 1 });
     expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith('/show/cues'))).toBe(false);
 
-    store.linePositions = { '1': { page: 1, index: 0, act_id: 1, scene_id: 1 } };
+    // Loaded, even though no line has a cue: an empty result must not look like "not loaded".
+    await store.loadCues();
+    fetchMock.mockClear();
     await store.scriptPageChanged({ page: 1 });
     expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith('/show/cues'))).toBe(true);
   });

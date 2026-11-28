@@ -1,6 +1,11 @@
 <template>
   <BContainer class="mx-0 px-0" fluid>
-    <div v-if="!loaded" class="text-center py-5"><BSpinner /></div>
+    <div v-if="loadError" class="cue-load-error" role="alert">
+      <p>The cues could not be loaded. Check the connection and try again.</p>
+      <button type="button" class="btn btn-outline-light" @click="loadEverything">Try Again</button>
+    </div>
+
+    <div v-else-if="!loaded" class="text-center py-5"><BSpinner /></div>
 
     <CueEmptyState
       v-else-if="showStore.cueTypes.length === 0"
@@ -40,7 +45,7 @@
         <BCol cols="12">
           <template
             v-for="(line, index) in scriptStore.getScriptPage(currentEditPage)"
-            :key="`page_${currentEditPage}_line_${index}`"
+            :key="`page_${currentEditPage}_line_${line.id ?? index}`"
           >
             <ScriptLineCueEditor
               :line="line"
@@ -88,7 +93,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeMount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue';
+import log from 'loglevel';
 import type { BModal } from 'bootstrap-vue-next';
 import CueEmptyState from '@/components/show/config/cues/CueEmptyState.vue';
 import CueToolbar from '@/components/show/config/cues/CueToolbar.vue';
@@ -176,45 +182,66 @@ function readStoredPage(): string | null {
   }
 }
 
-onBeforeMount(async () => {
-  await Promise.all([
-    userStore.getCurrentUser().then(() => {
-      if (userStore.currentUser != null) {
-        return Promise.all([
-          userStore.getStageDirectionStyleOverrides(),
-          userStore.getCueColourOverrides(),
-        ]);
-      }
-    }),
-    showStore.getActList(),
-    showStore.getSceneList(),
-    showStore.getCharacterList(),
-    showStore.getCharacterGroupList(),
-    showStore.getCueTypes(),
-    showStore.getShowSessionData(),
-    scriptStore.loadCues(),
-    scriptStore.getCuts(),
-    scriptStore.getStageDirectionStyles(),
-    scriptStore.getMaxPage().then(() => {
-      currentMaxPage.value = scriptStore.maxPage;
-    }),
-  ]);
+const loadError = ref(false);
 
-  const storedPage = readStoredPage();
-  if (storedPage != null) {
-    currentEditPage.value = Number.parseInt(storedPage, 10) || 1;
-  }
-  await goToPageInner(currentEditPage.value);
-  loaded.value = true;
-});
+/** Keep a page number inside the script (a remembered or typed page can be past its end now). */
+function clampPage(pageNo: number): number {
+  const last = Math.max(1, currentMaxPage.value);
+  return Math.min(Math.max(1, Math.trunc(pageNo) || 1), last);
+}
 
-async function goToPageInner(pageNo: number): Promise<void> {
-  if (pageNo > 1) {
-    await scriptStore.loadScriptPage(pageNo - 1);
+async function loadEverything(): Promise<void> {
+  loadError.value = false;
+  let cuesLoaded = true;
+  let maxPageLoaded = true;
+  try {
+    await Promise.all([
+      userStore.getCurrentUser().then(() => {
+        if (userStore.currentUser != null) {
+          return Promise.all([
+            userStore.getStageDirectionStyleOverrides(),
+            userStore.getCueColourOverrides(),
+          ]);
+        }
+      }),
+      showStore.getActList(),
+      showStore.getSceneList(),
+      showStore.getCharacterList(),
+      showStore.getCharacterGroupList(),
+      showStore.getCueTypes(),
+      showStore.getShowSessionData(),
+      scriptStore.loadCues().then((ok) => {
+        cuesLoaded = ok;
+      }),
+      scriptStore.getCuts(),
+      scriptStore.getStageDirectionStyles(),
+      scriptStore.getMaxPage().then((ok) => {
+        maxPageLoaded = ok;
+        currentMaxPage.value = scriptStore.maxPage;
+      }),
+    ]);
+    // Showing "no cues" for cues that simply did not arrive would be a lie.
+    if (!cuesLoaded || !maxPageLoaded) throw new Error('cues or page count not loaded');
+
+    const storedPage = readStoredPage();
+    currentEditPage.value = clampPage(storedPage == null ? 1 : Number.parseInt(storedPage, 10));
+    if (!(await goToPageInner(currentEditPage.value))) throw new Error('script page not loaded');
+    loaded.value = true;
+  } catch (error) {
+    log.error('Unable to load the cue editor', error);
+    loadError.value = true;
   }
-  await scriptStore.loadScriptPage(pageNo);
+}
+
+onBeforeMount(loadEverything);
+
+/** Load a page and the one before and after it. Only the page itself decides the result. */
+async function goToPageInner(pageNo: number): Promise<boolean> {
+  if (pageNo > 1) await scriptStore.loadScriptPage(pageNo - 1);
+  if (!(await scriptStore.loadScriptPage(pageNo))) return false;
   currentEditPage.value = pageNo;
   await scriptStore.loadScriptPage(pageNo + 1);
+  return true;
 }
 
 // ── The open card ───────────────────────────────────────────────────────────
@@ -237,7 +264,10 @@ function sameCard(a: ActiveCueCard | null, b: ActiveCueCard): boolean {
   );
 }
 
-/** A card with unsaved group changes is the only thing worth asking about. */
+/**
+ * Ask before throwing away unsaved group changes. Only group cards report them
+ * (`groupDirty`); a single cue has little to lose, so its card closes without asking.
+ */
 async function confirmDiscard(): Promise<boolean> {
   if (!groupDirty.value) return true;
   return confirm('Discard your changes to this group?', {
@@ -249,15 +279,16 @@ async function confirmDiscard(): Promise<boolean> {
 }
 
 function labelFor(card: ActiveCueCard): string {
-  if (card.cueId != null) {
-    const cue = scriptStore.cuesForLine(card.lineId).find((c) => c.id === card.cueId);
-    return cue ? cueLabel(cue) : 'The cue';
-  }
+  // A group first: a view-only group also carries one of its cues.
   if (card.groupId != null) {
     const entry = scriptStore
       .groupedCuesForLine(card.lineId)
       .groups.find((g) => g.group.id === card.groupId);
     return entry ? cueGroupLabel(entry.group, entry.cues) : 'The group';
+  }
+  if (card.cueId != null) {
+    const cue = scriptStore.cuesForLine(card.lineId).find((c) => c.id === card.cueId);
+    return cue ? cueLabel(cue) : 'The cue';
   }
   return '';
 }
@@ -311,6 +342,23 @@ function onTargetGone(): void {
   notice.value = `${label} was changed or removed by someone else, so the card was closed.`;
 }
 
+/**
+ * If someone else edits the line the card is on, it gets a new id and the page reloads without
+ * it, so the card would vanish with nothing said (and a dirty group would be remembered).
+ * Close it and tell the person instead.
+ */
+watch(
+  () => scriptStore.getScriptPage(currentEditPage.value),
+  (lines) => {
+    const card = activeCard.value;
+    if (!card || lines.length === 0) return;
+    if (lines.some((l) => l.id === card.lineId)) return;
+    closeCard(false);
+    notice.value =
+      'The line you were working on was changed or removed by someone else, so the card was closed.';
+  }
+);
+
 // ── Pages ───────────────────────────────────────────────────────────────────
 
 /** Changing page closes the card without asking, unless a group has unsaved changes. */
@@ -327,29 +375,41 @@ async function requestGoToPage(): Promise<void> {
 
 async function goToPage(): Promise<void> {
   if (!pageInputNo.value || pageInputNo.value < 1) return;
+  const target = clampPage(pageInputNo.value);
+  pageInputNo.value = target;
   changingPage.value = true;
-  await goToPageInner(pageInputNo.value);
-  changingPage.value = false;
-  goToPageModal.value?.hide();
+  try {
+    if (!(await goToPageInner(target))) {
+      toast.error(`Could not load page ${target}.`);
+      return;
+    }
+    goToPageModal.value?.hide();
+  } finally {
+    changingPage.value = false;
+  }
 }
 
-async function decrPage(): Promise<void> {
-  if (currentEditPage.value <= 1 || !(await leaveCard())) return;
+/** Step to a neighbouring page, staying where we are if it cannot be loaded. */
+async function stepPage(by: -1 | 1): Promise<void> {
+  const target = currentEditPage.value + by;
+  if (target < 1 || target > currentMaxPage.value || !(await leaveCard())) return;
   changingPage.value = true;
-  const targetPage = currentEditPage.value - 1;
-  await scriptStore.loadScriptPage(targetPage);
-  currentEditPage.value--;
-  await scriptStore.loadScriptPage(currentEditPage.value - 1);
-  changingPage.value = false;
+  try {
+    const loadedAlready = scriptStore.getScriptPage(target).length > 0;
+    if (!loadedAlready && !(await scriptStore.loadScriptPage(target))) {
+      toast.error(`Could not load page ${target}.`);
+      return;
+    }
+    currentEditPage.value = target;
+    const ahead = target + by;
+    if (ahead >= 1) await scriptStore.loadScriptPage(ahead);
+  } finally {
+    changingPage.value = false;
+  }
 }
 
-async function incrPage(): Promise<void> {
-  if (currentEditPage.value >= currentMaxPage.value || !(await leaveCard())) return;
-  changingPage.value = true;
-  currentEditPage.value++;
-  await scriptStore.loadScriptPage(currentEditPage.value + 1);
-  changingPage.value = false;
-}
+const decrPage = () => stepPage(-1);
+const incrPage = () => stepPage(1);
 
 // ── Find ────────────────────────────────────────────────────────────────────
 
@@ -364,18 +424,31 @@ async function onJump(match: FindMatch): Promise<void> {
   if (filterTypeId.value != null && filterTypeId.value !== match.cue_type.id)
     filterTypeId.value = null;
   changingPage.value = true;
-  await goToPageInner(page);
-  changingPage.value = false;
+  try {
+    if (!(await goToPageInner(page))) {
+      toast.error(`Could not load page ${page}.`);
+      return;
+    }
+  } finally {
+    changingPage.value = false;
+  }
   jumpLineId.value = match.location.line_id;
   await nextTick();
   document
     .querySelector(`[data-line-id="${match.location.line_id}"]`)
     ?.scrollIntoView?.({ block: 'center' });
   toast.success(`Jumped to ${match.cue_type.prefix} ${match.cue.ident} on page ${page}`);
-  setTimeout(() => {
-    if (jumpLineId.value === match.location.line_id) jumpLineId.value = null;
+  if (jumpTimer != null) clearTimeout(jumpTimer);
+  jumpTimer = setTimeout(() => {
+    jumpTimer = null;
+    jumpLineId.value = null;
   }, 2000);
 }
+
+let jumpTimer: ReturnType<typeof setTimeout> | null = null;
+onBeforeUnmount(() => {
+  if (jumpTimer != null) clearTimeout(jumpTimer);
+});
 </script>
 
 <style scoped>
@@ -387,6 +460,15 @@ async function onJump(match: FindMatch): Promise<void> {
   color: var(--bs-warning);
   font-size: 0.875rem;
   font-weight: 700;
+}
+
+.cue-load-error {
+  max-width: 560px;
+  margin: 32px auto;
+  padding: 20px;
+  border: 2px solid var(--bs-danger);
+  border-radius: 0.25rem;
+  text-align: center;
 }
 
 .cue-colhead {

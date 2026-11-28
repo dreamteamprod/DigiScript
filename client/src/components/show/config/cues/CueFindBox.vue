@@ -97,6 +97,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue';
+import log from 'loglevel';
 import { useCueDisplay } from '@/composables/useCueDisplay';
 import {
   mergeFindResponses,
@@ -246,7 +247,8 @@ async function run(numberOverride?: string, typing = false): Promise<void> {
       )
     );
     response = mergeFindResponses(responses as FindResponse[]);
-  } catch {
+  } catch (err) {
+    log.error('Cue search failed', err);
     if (myRequest === requestId) state.value = 'error';
     return;
   }
@@ -326,7 +328,8 @@ function previewText(match: FindMatch): string {
 
 // Close when focus or a click moves outside the box.
 function onDocumentPointer(event: Event): void {
-  if (root.value && !root.value.contains(event.target as Node)) closePanel();
+  // Also drops a search that is waiting or on its way, so it cannot reopen the list.
+  if (root.value && !root.value.contains(event.target as Node)) dismiss();
 }
 onMounted(() => document.addEventListener('pointerdown', onDocumentPointer));
 onBeforeUnmount(() => {
