@@ -137,6 +137,63 @@ class TestShowsController(DigiScriptTestCase):
         response_body = tornado.escape.json_decode(response.body)
         self.assertIn("Invalid script mode value", response_body["message"])
 
+    def test_create_show_validation_messages_and_order(self):
+        """Each invalid payload gets its own 400 message, and checks run in the
+        order name, start, end, date order, script mode."""
+        valid = {
+            "name": "Test Show",
+            "start": "2025-01-01",
+            "end": "2025-12-31",
+            "script_mode": ShowScriptType.FULL.value,
+        }
+        cases = [
+            ({"name": ""}, "Show name missing"),
+            ({"start": ""}, "Start date missing"),
+            ({"start": "not a date"}, "Unable to parse start date value"),
+            ({"end": ""}, "End date missing"),
+            ({"end": "not a date"}, "Unable to parse end date value"),
+            (
+                {"start": "2025-12-31", "end": "2025-01-01"},
+                "Start date must be before or the same as the end date",
+            ),
+            # Order: an earlier problem is reported even when later ones also exist.
+            ({"name": "", "start": ""}, "Show name missing"),
+            ({"start": "", "end": ""}, "Start date missing"),
+            ({"start": "not a date", "end": ""}, "Unable to parse start date value"),
+            (
+                {"start": "2025-12-31", "end": "2025-01-01", "script_mode": 999},
+                "Start date must be before or the same as the end date",
+            ),
+        ]
+        for overrides, expected in cases:
+            with self.subTest(overrides=overrides):
+                response = self.fetch(
+                    "/api/v1/show",
+                    method="POST",
+                    body=tornado.escape.json_encode({**valid, **overrides}),
+                    headers={"Authorization": f"Bearer {self.token}"},
+                )
+                self.assertEqual(400, response.code)
+                self.assertEqual(
+                    expected, tornado.escape.json_decode(response.body)["message"]
+                )
+
+    def test_create_show_same_start_and_end_date_is_allowed(self):
+        response = self.fetch(
+            "/api/v1/show",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {
+                    "name": "One Night Only",
+                    "start": "2025-06-01",
+                    "end": "2025-06-01",
+                    "script_mode": ShowScriptType.FULL.value,
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
 
 class TestShowDeletionController(DigiScriptTestCase):
     """Test suite for DELETE /api/v1/show endpoint."""

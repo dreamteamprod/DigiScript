@@ -35,7 +35,7 @@ def test_summarise_map_key_changes_and_deletions():
 
     assert "Map['1'] add = <Array len=1>" in joined
     assert f"Map['long'] add = {'x' * 60 + '…'!r}" in joined  # long strings are clipped
-    assert "Map['n'] delete = <deleted, was 5.0>" in joined
+    assert "Map['n'] delete = <deleted, was 5" in joined
 
 
 def test_summarise_text_and_array_deltas():
