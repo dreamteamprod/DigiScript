@@ -154,61 +154,98 @@ type ToastFn = {
   info: (m: string) => void;
 };
 
-function checkPermissionGuards(
+type SystemStore = Awaited<ReturnType<typeof import('@/stores/system').useSystemStore>>;
+type UserStore = Awaited<ReturnType<typeof import('@/stores/user').useUserStore>>;
+
+/** Before the first admin exists, only the create-admin screen (and /help) is reachable. */
+function checkPreSetupGuard(to: RouteLocationNormalized, toast: ToastFn): string | undefined {
+  // /help is reachable pre-setup too, so the first-run screen's "See what's collected"
+  // link (opened in a new tab, where has_admin_user is just as false) actually works —
+  // without this, that tab would just show the create-admin screen again.
+  const allowedPreSetup = to.path === '/' || to.path.startsWith('/help');
+  if (!allowedPreSetup) toast.error('Please create an admin user before continuing');
+  return allowedPreSetup ? undefined : '/';
+}
+
+function checkAuthGuard(
   to: RouteLocationNormalized,
   from: RouteLocationNormalized,
-  systemStore: Awaited<ReturnType<typeof import('@/stores/system').useSystemStore>>,
-  userStore: Awaited<ReturnType<typeof import('@/stores/user').useUserStore>>,
+  userStore: UserStore,
   toast: ToastFn
 ): string | undefined {
-  const settings = systemStore.settings as Record<string, unknown> | null;
-  if (settings?.has_admin_user === false) {
-    // /help is reachable pre-setup too, so the first-run screen's "See what's collected"
-    // link (opened in a new tab, where has_admin_user is just as false) actually works —
-    // without this, that tab would just show the create-admin screen again.
-    const allowedPreSetup = to.path === '/' || to.path.startsWith('/help');
-    if (!allowedPreSetup) toast.error('Please create an admin user before continuing');
-    return allowedPreSetup ? undefined : '/';
-  }
-
-  const currentUser = userStore.currentUser;
-  const isAuthenticated = currentUser !== null;
-  const requiresAuth = to.matched.some((r) => r.meta.requiresAuth);
-  const requiresAdmin = to.matched.some((r) => r.meta.requiresAdmin);
-  const requiresShowAccess = to.matched.some((r) => r.meta.requiresShowAccess);
-
+  const isAuthenticated = userStore.currentUser !== null;
   if (to.path === '/login' && isAuthenticated) {
     toast.info('You are already logged in');
     return from.fullPath === '/login' ? '/' : from.fullPath;
   }
-  if (requiresAuth && !isAuthenticated) {
+  if (!isAuthenticated && to.matched.some((r) => r.meta.requiresAuth)) {
     toast.error('Please log in to access this page');
     return '/login';
   }
+  return undefined;
+}
 
-  const requiresPasswordChange = currentUser?.requires_password_change === true;
+function checkPasswordChangeGuard(
+  to: RouteLocationNormalized,
+  userStore: UserStore,
+  toast: ToastFn
+): string | undefined {
+  const requiresPasswordChange = userStore.currentUser?.requires_password_change === true;
   const isPasswordChangePage = to.path === '/force-password-change';
-  if (isAuthenticated && requiresPasswordChange && !isPasswordChangePage) {
+  if (userStore.currentUser !== null && requiresPasswordChange && !isPasswordChangePage) {
     toast.warning('You must change your password before continuing');
     return '/force-password-change';
   }
   if (isPasswordChangePage && !requiresPasswordChange) return '/';
+  return undefined;
+}
 
-  if (requiresAdmin && !systemStore.isAdminUser) {
+function checkAdminGuard(
+  to: RouteLocationNormalized,
+  systemStore: SystemStore,
+  toast: ToastFn
+): string | undefined {
+  if (to.matched.some((r) => r.meta.requiresAdmin) && !systemStore.isAdminUser) {
     toast.error('Admin access required');
     return '/';
   }
-  if (requiresShowAccess) {
-    if (!systemStore.currentShow) {
-      toast.error('No show is currently selected');
-      return '/';
-    }
-    if (!systemStore.hasShowAccess) {
-      toast.error('You do not have permission to access show configuration');
-      return '/';
-    }
+  return undefined;
+}
+
+function checkShowAccessGuard(
+  to: RouteLocationNormalized,
+  systemStore: SystemStore,
+  toast: ToastFn
+): string | undefined {
+  if (!to.matched.some((r) => r.meta.requiresShowAccess)) return undefined;
+  if (!systemStore.currentShow) {
+    toast.error('No show is currently selected');
+    return '/';
+  }
+  if (!systemStore.hasShowAccess) {
+    toast.error('You do not have permission to access show configuration');
+    return '/';
   }
   return undefined;
+}
+
+/** Runs the guards in order; the first one to return a redirect wins. */
+function checkPermissionGuards(
+  to: RouteLocationNormalized,
+  from: RouteLocationNormalized,
+  systemStore: SystemStore,
+  userStore: UserStore,
+  toast: ToastFn
+): string | undefined {
+  const settings = systemStore.settings as Record<string, unknown> | null;
+  if (settings?.has_admin_user === false) return checkPreSetupGuard(to, toast);
+
+  return (
+    checkAuthGuard(to, from, userStore, toast) ??
+    checkPasswordChangeGuard(to, userStore, toast) ??
+    checkAdminGuard(to, systemStore, toast) ??
+    checkShowAccessGuard(to, systemStore, toast)
+  );
 }
 
 async function checkLiveGuard(toast: ToastFn): Promise<string | undefined> {
