@@ -129,7 +129,15 @@ test('creates a branch from the current revision, giving the graph two branches'
   await waitForModal(page, 'Revision 1');
   await page.locator('.modal.show button:has-text("Create Branch From Here")').click();
   await waitForModal(page, 'Create Revision Branch');
-  await page.fill('.modal.show #branch-description', 'Alternative ending');
+  // The modal clears its form when its `show` event fires (setupBranchForm), which on a slower
+  // browser (Firefox in CI) can land after a fill made as soon as the title is visible, leaving
+  // OK disabled. Refill until the description has stuck and OK is enabled.
+  await expect(async () => {
+    await page.fill('.modal.show #branch-description', 'Alternative ending');
+    await expect(page.locator('.modal.show .modal-footer button.btn-primary')).toBeEnabled({
+      timeout: 1_000,
+    });
+  }).toPass({ timeout: 15_000 });
   await docShot(page, 'config_show/script_create_branch_modal', {
     fixText: [
       { locator: page.locator('.modal.show dd').nth(2), text: '06/01/2025, 09:41:57' },
