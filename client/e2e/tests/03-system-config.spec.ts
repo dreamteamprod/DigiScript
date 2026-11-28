@@ -429,10 +429,12 @@ test('can change JWT Token Lifetime and submit successfully', async () => {
     await select.selectOption({ label: '1 day' });
     await page.locator('button:has-text("Submit")').click({ timeout: 5_000 });
   }).toPass({ timeout: 30_000 });
-  await page
-    .locator('.v-toast__item')
-    .waitFor({ state: 'detached', timeout: 10_000 })
-    .catch(() => {});
+  // Reloading before the PATCH has been answered could abort it, so wait for the save toast
+  // (it only appears once the response arrives) and then for it to clear.
+  await expect(page.locator('.v-toast__item:has-text("Saved settings")')).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.locator('.v-toast__item')).toHaveCount(0, { timeout: 15_000 });
 
   // The restore must really have been saved: later specs assume the default lifetime.
   await page.reload();

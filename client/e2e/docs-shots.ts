@@ -94,7 +94,11 @@ export async function docShot(
         }),
       text
     );
-    const broken = originals.filter((o) => /undefined|\bnull\b|NaN|Invalid Date|\[object/i.test(o));
+    // Case-sensitive with word boundaries: the replaced values include random passwords, tokens
+    // and temp-dir names, which can contain "nan" or "null" inside ordinary text.
+    const broken = originals.filter((o) =>
+      /\bundefined\b|\bnull\b|\bNaN\b|Invalid Date|\[object /.test(o)
+    );
     expect(broken, 'fixText replaced text that looks like a UI bug').toEqual([]);
   }
   for (const locator of options.mask ?? []) {

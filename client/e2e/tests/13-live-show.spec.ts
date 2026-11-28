@@ -43,8 +43,9 @@ registerRetryHooks();
 const FOLLOWER_USERNAME = 'live-follower';
 const FOLLOWER_PASSWORD = 'followerpass';
 
-let leaderCtx: BrowserContext;
-let followerCtx: BrowserContext;
+// Undefined until beforeAll gets that far, so afterAll must tolerate them missing.
+let leaderCtx: BrowserContext | undefined;
+let followerCtx: BrowserContext | undefined;
 let leaderPage: Page;
 let followerPage: Page;
 // Seeded so the Stage Manager pane and Plan modal have something to show; allocations can't
@@ -71,18 +72,27 @@ test.beforeAll(async ({ browser, request }) => {
 });
 
 test.afterAll(async ({ request }) => {
-  await leaderCtx.close();
-  await followerCtx.close();
-
-  // Independent steps: a failed attempt may have left the stage plan undeletable (e.g. a
-  // session still live), and that must not stop the follower user being removed or mask the
-  // test's own failure.
-  try {
+  // Independent steps: beforeAll may have failed part way, and a failed attempt may have left
+  // the stage plan undeletable (e.g. a session still live). None of that may stop the other
+  // steps running or replace the test's own failure; the first cleanup error is rethrown last.
+  const failures: unknown[] = [];
+  const attempt = async (step: () => Promise<unknown>) => {
+    try {
+      await step();
+    } catch (error) {
+      failures.push(error);
+    }
+  };
+  await attempt(async () => leaderCtx?.close());
+  await attempt(async () => followerCtx?.close());
+  await attempt(async () => {
     if (stagePlan) await removeStagePlan(await ShowApi.asAdmin(request), stagePlan);
-  } finally {
+  });
+  await attempt(async () => {
     const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
     await deleteUserByUsername(request, adminToken, FOLLOWER_USERNAME);
-  }
+  });
+  if (failures.length > 0) throw failures[0];
 });
 
 // ── Session lifecycle ──────────────────────────────────────────────────────

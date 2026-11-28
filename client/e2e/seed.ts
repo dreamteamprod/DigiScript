@@ -93,8 +93,13 @@ export async function seedStagePlan(api: ShowApi): Promise<StagePlan> {
   try {
     await buildStagePlan(api, plan);
   } catch (error) {
-    // Don't strand a half-built plan in the database for later specs.
-    await removeStagePlan(api, plan);
+    // Don't strand a half-built plan in the database for later specs, but never let a failed
+    // rollback replace the error that explains why the build failed.
+    try {
+      await removeStagePlan(api, plan);
+    } catch (cleanupError) {
+      console.warn('seedStagePlan: rollback failed', cleanupError);
+    }
     throw error;
   }
   return plan as StagePlan;
@@ -105,9 +110,10 @@ async function buildStagePlan(api: ShowApi, plan: StagePlan): Promise<void> {
   const scene1 = await api.idByName('show/scene', 'scenes', 'Scene 1');
   await api.post('show/scene', { act_id: actId, name: 'Scene 2', previous_scene_id: scene1 });
   const scene2 = await api.idByName('show/scene', 'scenes', 'Scene 2');
+  plan.sceneIds.push(scene2);
   await api.post('show/scene', { act_id: actId, name: 'Scene 3', previous_scene_id: scene2 });
   const scene3 = await api.idByName('show/scene', 'scenes', 'Scene 3');
-  plan.sceneIds.push(scene2, scene3);
+  plan.sceneIds.push(scene3);
 
   await api.post('show/stage/props/types', { name: 'Furniture' });
   const propTypeId = await api.idByName('show/stage/props/types', 'prop_types', 'Furniture');

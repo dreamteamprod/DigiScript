@@ -36,20 +36,23 @@ docker run --rm --shm-size=1g \
   -v digiscript-docs-pnpm-store:/root/.local/share/pnpm \
   -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
   -e "DOCS_UPDATE=${DOCS_UPDATE:-changed}" \
+  -e PYTHONDONTWRITEBYTECODE=1 \
   "${IMAGE}" \
   bash -c '
     set -e
+    # The container runs as root on a bind mount: hand everything it wrote back to the host user
+    # (images, the frontend build, the copied docs, and the Playwright report folders). Done from
+    # an EXIT trap so it also runs when an earlier step fails.
+    fix_owner() {
+      for path in /work/docs/images /work/server/static /work/client/public/docs \
+                  /work/client/test-results /work/client/playwright-report /work/client/junit; do
+        if [ -e "$path" ]; then
+          chown -R "${HOST_UID}:${HOST_GID}" "$path" || echo "warning: could not chown $path" >&2
+        fi
+      done
+    }
+    trap fix_owner EXIT
     pnpm install --frozen-lockfile --store-dir /root/.local/share/pnpm/store
     pnpm run build
-    status=0
-    pnpm run test:e2e:docs || status=$?
-    # The container runs as root on a bind mount: hand everything it wrote back to the host user
-    # (images, the frontend build, the copied docs, and the Playwright report folders).
-    for path in /work/docs/images /work/server/static /work/client/public/docs \
-                /work/client/test-results /work/client/playwright-report /work/client/junit; do
-      if [ -e "$path" ]; then
-        chown -R "${HOST_UID}:${HOST_GID}" "$path" || echo "warning: could not chown $path" >&2
-      fi
-    done
-    exit $status
+    pnpm run test:e2e:docs
   '

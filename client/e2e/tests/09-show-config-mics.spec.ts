@@ -163,12 +163,13 @@ test('seeds allocations across three scenes with changeover conflicts', async ({
   const scene1 = await api.idByName('show/scene', 'scenes', 'Scene 1');
   await api.post('show/scene', { act_id: act1, name: 'Scene 2', previous_scene_id: scene1 });
   const scene2 = await api.idByName('show/scene', 'scenes', 'Scene 2');
+  micPlan.sceneIds.push(scene2);
   await api.post('show/act', { name: 'Act 2', interval_after: false, previous_act_id: act1 });
   const act2 = await api.idByName('show/act', 'acts', 'Act 2');
   micPlan.actId = act2;
   await api.post('show/scene', { act_id: act2, name: 'Scene 3', previous_scene_id: null });
   const scene3 = await api.idByName('show/scene', 'scenes', 'Scene 3');
-  micPlan.sceneIds = [scene3, scene2];
+  micPlan.sceneIds.push(scene3);
 
   await api.post('show/microphones', { name: 'Mic 2', description: '' });
   const mic1 = await api.idByName('show/microphones', 'microphones', 'Mic 1');
