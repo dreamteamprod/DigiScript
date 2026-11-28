@@ -282,6 +282,12 @@ def ensure_trailing_page(
     return doc.get_update(state_before), repaired_pages
 
 
+def _backfill_uid(item) -> None:
+    """Set ``_uid`` to ``_id`` on a line or part Y.Map that has an ``_id`` but no ``_uid``."""
+    if "_uid" not in item and "_id" in item:
+        item["_uid"] = str(item["_id"])
+
+
 def backfill_uids(doc: pycrdt.Doc) -> None:
     """Give lines and parts of a draft that predates ``_uid`` a ``_uid`` equal to ``_id``.
 
@@ -289,15 +295,17 @@ def backfill_uids(doc: pycrdt.Doc) -> None:
     save rewrites, so such a draft would keep the write-after-save problem.
     """
     pages = doc.get("pages", type=pycrdt.Map)
-    for key in numeric_page_keys(pages):
-        if not isinstance(pages[key], pycrdt.Array):
-            continue  # malformed; the extractor reports it at save time
-        for line in pages[key]:
-            if "_uid" not in line and "_id" in line:
-                line["_uid"] = str(line["_id"])
+    page_arrays = (
+        pages[key]
+        for key in numeric_page_keys(pages)
+        # malformed pages are skipped; the extractor reports them at save time
+        if isinstance(pages[key], pycrdt.Array)
+    )
+    for page_array in page_arrays:
+        for line in page_array:
+            _backfill_uid(line)
             for part in line.get("parts", []):
-                if "_uid" not in part and "_id" in part:
-                    part["_uid"] = str(part["_id"])
+                _backfill_uid(part)
 
 
 def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
