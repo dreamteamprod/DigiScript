@@ -116,7 +116,6 @@ test('switches to the Script Cues tab', async () => {
   await page.click('.nav-link:has-text("Script Cues")');
   // The editor loads the script view — shows page navigation
   await expect(page.locator('button:has-text("Go to Page")')).toBeVisible({ timeout: 10_000 });
-  await docShot(page, 'config_show/cue_configuration_empty');
 });
 
 test('the toolbar has page navigation, a find box and a cue type filter', async () => {

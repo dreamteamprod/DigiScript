@@ -99,7 +99,7 @@
             : `${members.length} ${members.length === 1 ? 'cue' : 'cues'} in this group, in order. Drag, or use the arrows, to reorder.`
         }}
       </span>
-      <div v-if="members.length" class="member-list">
+      <div v-if="members.length" class="member-list" role="group" aria-label="Cues in this group">
         <span
           v-for="(member, index) in members"
           :key="member.key"
@@ -570,7 +570,9 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 220px;
+  /* A long group (100 timecode cues, say) scrolls inside this box instead of stretching the
+     card; it uses more of a tall window, but never less than ~5 rows. */
+  max-height: clamp(220px, 35vh, 360px);
   overflow-y: auto;
   padding: 2px;
 }
@@ -588,7 +590,7 @@ onMounted(() => {
 
 .member-tile button,
 .member-handle {
-  min-width: 32px;
+  min-width: 28px;
   min-height: 34px;
   padding: 0;
   border: 0;
@@ -606,7 +608,8 @@ onMounted(() => {
   outline-offset: -2px;
 }
 
-.member-handle {
+.member-tile .member-handle {
+  min-width: 20px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -619,7 +622,7 @@ onMounted(() => {
 }
 
 .member-input {
-  width: 56px;
+  width: 52px;
   min-height: 30px;
   border: 0;
   border-radius: 2px;

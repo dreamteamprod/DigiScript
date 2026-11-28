@@ -525,6 +525,8 @@ test('navigates to Script Cues with saved script content', async () => {
   await expect(
     page.locator('.viewable-line').filter({ hasText: 'To be or not to be' }).first()
   ).toBeVisible({ timeout: 10_000 });
+  // The script has content but no cues yet.
+  await docShot(page, 'config_show/cue_configuration_empty');
 });
 
 test('"+ Cue" opens a card with the first free number suggested', async () => {
@@ -717,6 +719,35 @@ test('deletes the cue group after confirming', async () => {
     .click();
   await confirmDialog(page);
   await expect(page.locator('.cue-group-btn')).not.toBeVisible({ timeout: 5_000 });
+});
+
+test('a group of 100 cues scrolls inside the card instead of stretching it', async () => {
+  await page.locator('.add-cue-btn').first().click();
+  await addCard().getByRole('button', { name: 'Group of Cues' }).click();
+  await addGroupCard().getByLabel('From number').fill('1');
+  await addGroupCard().getByLabel('To number').fill('100');
+  await addGroupCard().getByRole('button', { name: 'Add Range' }).click();
+  await expect(addGroupCard().locator('.member-tile')).toHaveCount(100);
+
+  const list = addGroupCard().getByRole('group', { name: 'Cues in this group' });
+  const sizes = await list.evaluate((el) => ({
+    scroll: el.scrollHeight,
+    client: el.clientHeight,
+    window: window.innerHeight,
+  }));
+  // Long content scrolls in a box that is a fraction of the window, not the full list height.
+  expect(sizes.scroll).toBeGreaterThan(sizes.client);
+  expect(sizes.client).toBeLessThanOrEqual(sizes.window * 0.5);
+
+  // The last cue is reachable by scrolling, and the group can still be added.
+  await addGroupCard().getByLabel('Cue 100 of 100').scrollIntoViewIfNeeded();
+  await expect(addGroupCard().getByLabel('Cue 100 of 100')).toBeInViewport();
+  await expect(addGroupCard().getByRole('button', { name: 'Add Group of 100' })).toBeEnabled();
+
+  // Leave without adding: the changed group card asks first.
+  await addGroupCard().getByRole('button', { name: 'Cancel' }).click();
+  await confirmDialog(page);
+  await expect(addGroupCard()).not.toBeVisible({ timeout: 5_000 });
 });
 
 // ── Line part removal ──────────────────────────────────────────────────────

@@ -408,11 +408,22 @@ describe('CueGroupCard (edit)', () => {
     expect(button(w as never, 'Delete Group')!.attributes('disabled')).toBeDefined();
   });
 
-  it('lets a long list scroll rather than growing the card', async () => {
+  it('holds a long group (100 cues) in one labelled scrolling list, all still editable', async () => {
     setup();
-    const w = mountEdit();
+    const w = mountAdd();
     await flushPromises();
 
-    expect(w.find('.member-list').exists()).toBe(true);
+    await addRange(w, '1', '100');
+
+    const lists = w.findAll('.member-list');
+    expect(lists).toHaveLength(1);
+    expect(lists[0].attributes('role')).toBe('group');
+    expect(lists[0].attributes('aria-label')).toBe('Cues in this group');
+    expect(w.findAll('.member-tile')).toHaveLength(100);
+    expect(button(w, 'Add Group of 100')).toBeDefined();
+    expect(w.find('.cue-chip-group').text()).toBe('SND 1 - SND 100');
+    // Every cue keeps its own name and arrows, so the whole list is usable by keyboard.
+    expect(w.find('[aria-label="Move cue 100 earlier"]').exists()).toBe(true);
+    expect(w.find('[aria-label="Cue 100 of 100"]').exists()).toBe(true);
   });
 });
