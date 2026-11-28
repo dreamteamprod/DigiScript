@@ -19,7 +19,7 @@ import { useDraftWriter } from '@/composables/useDraftWriter';
 import type { SnapshotLine } from '@/js/yjs/yjsSnapshot';
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
-import type { BulkEditPayload } from '@/types/bulkEdit';
+import type { BulkEditPayload, CharacterAssignee } from '@/types/bulkEdit';
 
 const sendObj = vi.fn((_data: object) => true);
 vi.mock('@/composables/useWebSocket', () => ({
@@ -1784,11 +1784,7 @@ describe('CollabScriptEditor', () => {
         onToggleSelect: (lineUid: string, index: number) => void;
         clearSelection: () => void;
         applyToSelection: (payload: BulkEditPayload) => void;
-        onSetCharacterApply: (assignee: {
-          partIndex: number;
-          characterId: number | null;
-          characterGroupId: number | null;
-        }) => void;
+        onSetCharacterApply: (assignee: CharacterAssignee) => void;
         onMoveToSceneApply: (payload: { actId: number; sceneId: number }) => void;
         onDeleteSelection: () => void;
         navigateTo: (page: number) => Promise<void>;
@@ -1946,7 +1942,7 @@ describe('CollabScriptEditor', () => {
       vm(w).onToggleSelect(firstUid, 0);
       vm(w).onToggleSelect(secondUid, 1); // leaves line index 2 out of range
 
-      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
+      vm(w).applyToSelection({ kind: 'actScene', actId: 9, sceneId: 8 });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);
@@ -2043,7 +2039,7 @@ describe('CollabScriptEditor', () => {
       addSpacingLine(writer);
       await flushPromises();
 
-      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 9 }, assignee: null });
+      vm(w).applyToSelection({ kind: 'actScene', actId: 9, sceneId: 9 });
       await flushPromises();
 
       expect(useScriptDraftStore().getPageSnapshot(1)[0]!.act_id).toBe(1);
@@ -2061,7 +2057,7 @@ describe('CollabScriptEditor', () => {
 
       writer.deleteLine(1, middleUid);
       await flushPromises();
-      vm(w).applyToSelection({ actScene: { actId: 9, sceneId: 8 }, assignee: null });
+      vm(w).applyToSelection({ kind: 'actScene', actId: 9, sceneId: 8 });
       await flushPromises();
 
       const page1 = useScriptDraftStore().getPageSnapshot(1);

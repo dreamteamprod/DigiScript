@@ -242,8 +242,8 @@ import SetCharacterOrGroupDialog, {
 import BulkActSceneModal from './BulkActSceneModal.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
-import type { BulkEditPayload } from '@/types/bulkEdit';
-import { applyBulkPayloadToLine, narrowAssignee } from '@/js/bulkEditLine';
+import type { BulkEditPayload, CharacterAssignee } from '@/types/bulkEdit';
+import { applyBulkPayloadToLine } from '@/js/bulkEditLine';
 
 const showStore = useShowStore();
 const systemStore = useSystemStore();
@@ -909,8 +909,8 @@ async function openMoveToSceneDialog(): Promise<void> {
 }
 
 /** Applies a change to every line in the active selection — shared by both the
- * "Set Character or Group" and "Move to Scene" actions, so each only has to build
- * its own half of a `BulkEditPayload` (the other half stays null). */
+ * "Set Character or Group" and "Move to Scene" actions, each building its own kind
+ * of `BulkEditPayload`. */
 function applyToSelection(payload: BulkEditPayload): void {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
   const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
@@ -923,20 +923,14 @@ function applyToSelection(payload: BulkEditPayload): void {
   }
 }
 
-function onSetCharacterApply(assignee: {
-  partIndex: number;
-  characterId: number | null;
-  characterGroupId: number | null;
-}): void {
-  const narrowed = narrowAssignee(assignee);
-  if (!narrowed) return;
-  applyToSelection({ actScene: null, assignee: narrowed });
+function onSetCharacterApply(assignee: CharacterAssignee): void {
+  applyToSelection({ kind: 'assignee', ...assignee });
   setCharDialog.value?.hide();
   clearSelection();
 }
 
 function onMoveToSceneApply(payload: { actId: number; sceneId: number }): void {
-  applyToSelection({ actScene: payload, assignee: null });
+  applyToSelection({ kind: 'actScene', ...payload });
   moveToSceneModal.value?.hide();
   clearSelection();
 }

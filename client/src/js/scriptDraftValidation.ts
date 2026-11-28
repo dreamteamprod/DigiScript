@@ -116,8 +116,8 @@ function validateEmptyLine(line: ValidatableLine, lineTypeName: string): LineVal
  * columns are nullable), carried over unchanged from the classic editor's own
  * Vuelidate rules so an incomplete line is caught the same way in both editors.
  */
-export function validateDraftLine<L extends ValidatableLine>(
-  line: L,
+export function validateDraftLine(
+  line: ValidatableLine,
   isCompactMode: boolean
 ): LineValidationResult {
   if (line.act_id == null || line.scene_id == null) {
