@@ -12,6 +12,7 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -21,7 +22,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config/cues`);
@@ -36,6 +37,7 @@ test.afterAll(async () => {
 
 test('Cue Types tab shows New Cue Type button', async () => {
   await expect(page.locator('button:has-text("New Cue Type")')).toBeVisible();
+  await docShot(page, 'config_show/cue_types_empty');
 });
 
 test('opens New Cue Type modal', async () => {
@@ -61,6 +63,7 @@ test('creates a cue type SQ', async () => {
   await confirmModal(page);
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("SQ")').first()).toBeVisible();
+  await docShot(page, 'config_show/cue_types');
 });
 
 test('edits a cue type', async () => {
@@ -89,6 +92,7 @@ test('switches to Cue Configuration sub-tab', async () => {
   );
   // Cue editor loads the script view — shows page navigation
   await expect(page.locator('button:has-text("Go to Page")')).toBeVisible({ timeout: 10_000 });
+  await docShot(page, 'config_show/cue_configuration_empty');
 });
 
 test('cue editor navigation buttons are rendered', async () => {

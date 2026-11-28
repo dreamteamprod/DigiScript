@@ -14,6 +14,7 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -25,7 +26,7 @@ let page: Page;
 const NEW_PASSWORD = 'newpassword123';
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/me`);
@@ -40,6 +41,17 @@ test.afterAll(async () => {
 
 test('Settings page renders the About tab', async () => {
   await expect(page.locator('button[role="tab"]:has-text("About")')).toBeVisible();
+  await docShot(page, 'user_settings/about_tab', {
+    fixText: [
+      {
+        locator: page
+          .locator('.tab-pane.active tr')
+          .filter({ has: page.locator('th', { hasText: /Created On|Last Login|Last Seen/ }) })
+          .locator('td'),
+        text: '2025-01-06 09:30:12',
+      },
+    ],
+  });
 });
 
 // ── Settings ──────────────────────────────────────────────────────────────
@@ -47,6 +59,7 @@ test('Settings page renders the About tab', async () => {
 test('switches to Settings tab', async () => {
   await page.click('.nav-link:has-text("Settings"), button[role="tab"]:has-text("Settings")');
   await expect(page.locator('button:has-text("Submit")')).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'user_settings/settings_tab');
 });
 
 test('Submit button is disabled until a setting is changed', async () => {
@@ -233,6 +246,7 @@ test('submitting the configuration creates the override', async () => {
   await expect(page.locator('#stage-directions-table td:has-text("Action")')).toBeVisible({
     timeout: 5_000,
   });
+  await docShot(page, 'user_settings/stage_direction_styles_tab');
 });
 
 test('deletes the stage direction override', async () => {
@@ -244,6 +258,14 @@ test('deletes the stage direction override', async () => {
   await expect(page.locator('#stage-directions-table td:has-text("Action")')).not.toBeVisible({
     timeout: 5_000,
   });
+});
+
+// ── Cue Colour Preferences ────────────────────────────────────────────────
+
+test('switches to Cue Colour Preferences tab', async () => {
+  await page.click('.nav-link:has-text("Cue Colour Preferences")');
+  await expect(page.locator('.tab-pane.active')).toContainText(/cue/i);
+  await docShot(page, 'user_settings/cue_colour_preferences_tab');
 });
 
 // ── Change Password ───────────────────────────────────────────────────────
@@ -264,6 +286,7 @@ test('changes the admin password', async () => {
   await page.fill('#current-password-input', ADMIN_PASSWORD);
   await page.fill('#new-password-input', NEW_PASSWORD);
   await page.fill('#confirm-password-input', NEW_PASSWORD);
+  await docShot(page, 'user_settings/change_password_tab');
   await page.click('button[type="submit"]:has-text("Change Password")');
   // Form resets on success (current-password-input cleared) — toBeDisabled alone catches loading=true
   await expect(page.locator('#current-password-input')).toHaveValue('', { timeout: 10_000 });
@@ -311,6 +334,15 @@ test('generates an API token', async () => {
   // Scope to card to avoid matching the hidden modal footer "Revoke Token" button
   await expect(page.locator('.card button:has-text("Revoke Token")')).toBeVisible({
     timeout: 10_000,
+  });
+  await docShot(page, 'user_settings/api_token_tab', {
+    // The token is random and only shown once.
+    fixText: [
+      {
+        locator: page.locator('#api-token-display input'),
+        text: 'ds_3f9a1c7e5b2d48a6b0e1c4d79a8f2e63',
+      },
+    ],
   });
 });
 

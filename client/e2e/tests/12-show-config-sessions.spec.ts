@@ -13,6 +13,7 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -22,7 +23,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config/sessions`);
@@ -94,4 +95,20 @@ test('stops the session via the navbar to restore state for later specs', async 
   await page.click('button:has-text("Stop Session")');
   await confirmDialog(page);
   await expect(page.locator('a:has-text("Live")')).toHaveClass(/disabled/, { timeout: 10_000 });
+});
+
+test('the finished session appears in the Sessions list', async () => {
+  await page.goto(`${UI_BASE}/show-config/sessions`);
+  await waitForAppReady(page);
+  const rows = page.locator('.tab-pane.active table tbody tr');
+  await expect(rows.first()).toBeVisible({ timeout: 10_000 });
+  // Start/End/Run times are wall-clock values of this run.
+  const cell = (n: number) => page.locator(`.tab-pane.active table tbody tr td:nth-child(${n})`);
+  await docShot(page, 'config_show/sessions', {
+    fixText: [
+      { locator: cell(1), text: '2025-02-14 19:25:03' },
+      { locator: cell(2), text: '2025-02-14 22:41:37' },
+      { locator: cell(3), text: '03:16:34' },
+    ],
+  });
 });

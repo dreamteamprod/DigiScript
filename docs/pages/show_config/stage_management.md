@@ -103,7 +103,7 @@ To allocate items to a scene:
 
 To remove an allocation, click the **Delete** button next to the item.
 
-**Note**: Each prop or scenery item can only be allocated to one scene at a time, reflecting the physical constraint that an item can only be in one place.
+**Note**: An item can only be allocated to a given scene once. Allocating it to consecutive scenes keeps it on stage across them; those scenes form an allocation block (see [Understanding Allocation Blocks](#understanding-allocation-blocks)).
 
 ##### Crew Assignment Warnings
 

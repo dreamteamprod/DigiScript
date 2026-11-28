@@ -1,6 +1,7 @@
 import { defineConfig, devices, type ReporterDescription } from '@playwright/test';
 
 import { BASE_URL } from './e2e/env.js';
+import { DOCS_MODE } from './e2e/docs-shots.js';
 
 // Retries exist because the suite is globally serial with DB-restore retry
 // hooks (see e2e/db-snapshot.ts) — a test that fails then passes on retry is
@@ -28,6 +29,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 3,
+  // Docs screenshots (DOCS_SCREENSHOTS=1, see e2e/docs-shots.ts) are written straight into
+  // the user docs, named by their path under docs/images/. `{arg}` includes the .png suffix.
+  snapshotPathTemplate: '../docs/images/{arg}{ext}',
   maxFailures: 1,
   reporter: reporters,
   use: {
@@ -38,14 +42,19 @@ export default defineConfig({
   },
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',
+  // Screenshots are only ever generated from Chromium.
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
+    ...(DOCS_MODE
+      ? []
+      : [
+          {
+            name: 'firefox',
+            use: { ...devices['Desktop Firefox'] },
+          },
+        ]),
   ],
 });

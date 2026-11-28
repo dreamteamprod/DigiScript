@@ -76,14 +76,21 @@ export async function deleteUserByUsername(
   const listResponse = await request.get(`${UI_BASE}/api/v1/auth/users`, {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
-  if (!listResponse.ok()) return;
+  if (!listResponse.ok()) {
+    throw new Error(`deleteUserByUsername: listing users failed: ${listResponse.status()}`);
+  }
   const { users } = (await listResponse.json()) as { users: { id: number; username: string }[] };
   const match = users.find((u) => u.username === username);
   if (!match) return;
-  await request.post(`${UI_BASE}/api/v1/auth/delete`, {
+  const deleteResponse = await request.post(`${UI_BASE}/api/v1/auth/delete`, {
     headers: { Authorization: `Bearer ${adminToken}` },
     data: { id: match.id },
   });
+  if (!deleteResponse.ok()) {
+    throw new Error(
+      `deleteUserByUsername failed for ${username}: ${deleteResponse.status()} ${await deleteResponse.text()}`
+    );
+  }
 }
 
 /** Wait for a Bootstrap modal with the given title to be visible. */
