@@ -237,22 +237,26 @@ const nextSceneId = computed((): number | null => {
   return showStore.orderedScenes[idx + 1].id;
 });
 
+function autoExpandScene(sceneId: number): void {
+  const idx = showStore.orderedScenes.findIndex((s) => s.id === sceneId);
+  const autoExpand = new Set([sceneId]);
+  if (idx !== -1 && idx < showStore.orderedScenes.length - 1) {
+    autoExpand.add(showStore.orderedScenes[idx + 1].id);
+  }
+  showStore.orderedScenes.forEach((s) => {
+    if (!autoExpand.has(s.id) && !pinnedScenes.value[s.id]) {
+      expandedScenes.value[s.id] = false;
+    }
+  });
+  autoExpand.forEach((id) => {
+    expandedScenes.value[id] = true;
+  });
+  nextTick(() => autoScrollToCurrentScene(sceneId));
+}
+
 watch(currentSceneId, (newId, oldId) => {
   if (newId !== null && newId !== oldId) {
-    const idx = showStore.orderedScenes.findIndex((s) => s.id === newId);
-    const autoExpand = new Set([newId]);
-    if (idx !== -1 && idx < showStore.orderedScenes.length - 1) {
-      autoExpand.add(showStore.orderedScenes[idx + 1].id);
-    }
-    showStore.orderedScenes.forEach((s) => {
-      if (!autoExpand.has(s.id) && !pinnedScenes.value[s.id]) {
-        expandedScenes.value[s.id] = false;
-      }
-    });
-    autoExpand.forEach((id) => {
-      expandedScenes.value[id] = true;
-    });
-    nextTick(() => autoScrollToCurrentScene(newId));
+    autoExpandScene(newId);
   }
 });
 
@@ -286,6 +290,9 @@ onMounted(async () => {
   loaded.value = true;
   await nextTick();
   computeContentSize();
+  if (currentSceneId.value !== null) {
+    autoExpandScene(currentSceneId.value);
+  }
   window.addEventListener('resize', debounceComputeContentSize);
 });
 
