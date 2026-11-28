@@ -40,6 +40,14 @@ export function computePageStatus(
   };
 }
 
+let lineKeyCounter = 0;
+
+/** A fresh, never-reused identity for a row — see `lineKeys` in the store below. */
+function newLineKey(): string {
+  lineKeyCounter += 1;
+  return `line_${lineKeyCounter}`;
+}
+
 interface EditStatus {
   canRequestEdit: boolean;
   currentEditor: string | null;
@@ -55,6 +63,17 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
     tmpScript: {} as Record<string, ScriptLine[]>,
     deletedLines: {} as Record<string, number[]>,
     insertedLines: {} as Record<string, number[]>,
+    // A stable identity per row of `tmpScript`, in a parallel array rather than a field
+    // on the lines: `tmpScript` is deep-compared with the saved script (computePageStatus,
+    // the editor's own scriptChanges) and sent to the server, so a client-only field on
+    // the lines would mark every line changed. Kept in lockstep with `tmpScript`'s own
+    // splices below; used by ScriptEditor.vue as the `v-for` key, so a row's editor
+    // instance follows its line when an insert/delete shifts its index, instead of being
+    // reused for whichever line now sits at that index. `addPage` always creates a page's
+    // array; the mutations below only touch an existing one (`?.`) and never create one,
+    // since an array started mid-page would be misaligned with `tmpScript` — a page
+    // populated without `addPage` just keeps the index-derived fallback keys.
+    lineKeys: {} as Record<string, string[]>,
     editStatus: { canRequestEdit: false, currentEditor: null } as EditStatus,
     cutMode: false,
     // Collab model fields, kept alongside the old single-editor editStatus above
@@ -81,6 +100,12 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       (state) =>
       (page: number | string): number[] =>
         state.insertedLines[String(page)] ?? [],
+    /** Stable row key for the line at `lineIndex`. Falls back to an index-derived key
+     * for a page whose `tmpScript` was populated without going through these actions. */
+    getLineKey:
+      (state) =>
+      (page: number | string, lineIndex: number): string =>
+        state.lineKeys[String(page)]?.[lineIndex] ?? `page_${page}_line_${lineIndex}`,
   },
 
   actions: {
@@ -88,12 +113,14 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       // JSON round-trip instead of structuredClone — reactive Pinia arrays (Proxy objects)
       // cannot be structuredCloned in some environments.
       this.tmpScript[String(page)] = JSON.parse(JSON.stringify(contents)); // NOSONAR
+      this.lineKeys[String(page)] = contents.map(() => newLineKey());
       if (!this.deletedLines[String(page)]) this.deletedLines[String(page)] = [];
       if (!this.insertedLines[String(page)]) this.insertedLines[String(page)] = [];
     },
 
     removePage(page: number): void {
       delete this.tmpScript[String(page)];
+      delete this.lineKeys[String(page)];
       delete this.deletedLines[String(page)];
       delete this.insertedLines[String(page)];
     },
@@ -102,6 +129,7 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       const l = structuredClone(line);
       l.page = page;
       this.tmpScript[String(page)].push(l);
+      this.lineKeys[String(page)]?.push(newLineKey());
     },
 
     insertBlankLine(page: number, lineIndex: number, line: ScriptLine): void {
@@ -113,11 +141,15 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
         l.page = page;
         l.id = this.tmpScript[pageStr][lineIndex].id;
         this.tmpScript[pageStr].splice(lineIndex, 1, l);
+        // New content in a reused slot: a fresh key, so it doesn't look like the
+        // tombstoned line it replaced.
+        this.lineKeys[pageStr]?.splice(lineIndex, 1, newLineKey());
         this.deletedLines[pageStr].splice(this.deletedLines[pageStr].indexOf(lineIndex), 1);
       } else {
         const l = structuredClone(line);
         l.page = page;
         this.tmpScript[pageStr].splice(lineIndex, 0, l);
+        this.lineKeys[pageStr]?.splice(lineIndex, 0, newLineKey());
         // Splicing shifts every later index up by one — deletedLines/insertedLines
         // index into the same array, so they must shift too, or a tombstone/insert
         // recorded before this one silently starts pointing at the wrong line.
@@ -139,6 +171,7 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
       const pageStr = String(page);
       if (this.tmpScript[pageStr][lineIndex].id === null) {
         this.tmpScript[pageStr].splice(lineIndex, 1);
+        this.lineKeys[pageStr]?.splice(lineIndex, 1);
         // Splicing shifts every later index down by one — see insertBlankLine's
         // own copy of this reasoning, same bug in the opposite direction.
         this.deletedLines[pageStr] = (this.deletedLines[pageStr] ?? []).map((i) =>
@@ -163,6 +196,7 @@ export const useScriptConfigStore = defineStore('scriptConfig', {
 
     emptyScript(): void {
       this.tmpScript = {};
+      this.lineKeys = {};
       this.deletedLines = {};
       this.insertedLines = {};
     },

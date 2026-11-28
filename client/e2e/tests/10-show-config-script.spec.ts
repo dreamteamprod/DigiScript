@@ -164,7 +164,9 @@ test('clicking "Click to edit" on an existing saved line reopens it in place', a
   );
 
   // Esc closes it again without changing anything (same as Done, but no save needed
-  // here since nothing was edited).
+  // here since nothing was edited). The input takes focus a frame after mounting, so
+  // wait for that first — a page-level Esc sent earlier lands on <body> and does nothing.
+  await expect(page.locator('input[type="text"]:visible').last()).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
   await expect(
@@ -189,7 +191,10 @@ test('ArrowUp / ArrowDown move the open editor between lines, and Shift+Tab reac
   await expect(openInput()).toHaveValue('That is the question', { timeout: 5_000 });
   await expect(page.locator('.line-editor-card')).toHaveCount(1);
 
-  // Shift+Tab goes back from the text field to the character select before it.
+  // Shift+Tab goes back from the text field to the character select before it. Wait for
+  // the freshly opened card's own deferred autofocus to land first, or it can steal focus
+  // back to the text field after the keypress.
+  await expect(openInput()).toBeFocused();
   await openInput().press('Shift+Tab');
   await expect(page.locator('.line-editor-card select:focus')).toBeVisible();
 

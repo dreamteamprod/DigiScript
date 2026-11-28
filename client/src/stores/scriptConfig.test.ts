@@ -188,3 +188,116 @@ describe('requestEditFailure', () => {
     expect(toast.error).toHaveBeenCalledWith('Unable to edit script');
   });
 });
+
+describe('lineKeys stay aligned with tmpScript', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  const keys = (store: ReturnType<typeof useScriptConfigStore>, n: number): string[] =>
+    Array.from({ length: n }, (_, i) => store.getLineKey(1, i));
+
+  it('gives every loaded line a distinct key', () => {
+    const store = useScriptConfigStore();
+    store.addPage(1, [makeLine(1, 1), makeLine(2, 1), makeLine(3, 1)]);
+
+    expect(new Set(keys(store, 3)).size).toBe(3);
+  });
+
+  it('an insert keeps every existing line’s key, shifting it with its line', () => {
+    const store = useScriptConfigStore();
+    store.addPage(1, [makeLine(1, 1), makeLine(2, 1)]);
+    const [k0, k1] = keys(store, 2);
+
+    store.insertBlankLine(1, 1, makeLine(null, 1)); // new line at index 1
+
+    const after = keys(store, 3);
+    expect(after[0]).toBe(k0);
+    expect(after[2]).toBe(k1);
+    expect([k0, k1]).not.toContain(after[1]);
+  });
+
+  it('splicing out an unsaved line removes just its key', () => {
+    const store = useScriptConfigStore();
+    store.addPage(1, [makeLine(1, 1), makeLine(2, 1)]);
+    store.insertBlankLine(1, 1, makeLine(null, 1));
+    const [k0, , k2] = keys(store, 3);
+
+    store.deleteLine(1, 1);
+
+    expect(keys(store, 2)).toEqual([k0, k2]);
+  });
+
+  it('tombstoning a saved line keeps every key in place', () => {
+    const store = useScriptConfigStore();
+    store.addPage(1, [makeLine(1, 1), makeLine(2, 1)]);
+    const before = keys(store, 2);
+
+    store.deleteLine(1, 0);
+
+    expect(keys(store, 2)).toEqual(before);
+  });
+
+  it('reusing a tombstoned slot gives it a fresh key', () => {
+    const store = useScriptConfigStore();
+    store.addPage(1, [makeLine(1, 1), makeLine(2, 1)]);
+    const [k0, k1] = keys(store, 2);
+    store.deleteLine(1, 0);
+
+    store.insertBlankLine(1, 0, makeLine(null, 1));
+
+    const after = keys(store, 2);
+    expect(after[0]).not.toBe(k0);
+    expect(after[1]).toBe(k1);
+  });
+
+  it('editing a line in place (setLine) keeps its key', () => {
+    const store = useScriptConfigStore();
+    store.addPage(1, [makeLine(1, 1)]);
+    const before = keys(store, 1);
+
+    store.setLine(1, 0, makeLine(1, 2));
+
+    expect(keys(store, 1)).toEqual(before);
+  });
+
+  it('appending a line adds a new key at the end', () => {
+    const store = useScriptConfigStore();
+    store.addPage(1, [makeLine(1, 1)]);
+    const [k0] = keys(store, 1);
+
+    store.addBlankLine(1, makeLine(null, 1));
+
+    const after = keys(store, 2);
+    expect(after[0]).toBe(k0);
+    expect(after[1]).not.toBe(k0);
+  });
+
+  it('falls back to an index-derived key for a page populated without the actions', () => {
+    const store = useScriptConfigStore();
+    store.tmpScript['1'] = [makeLine(1, 1)];
+
+    expect(store.getLineKey(1, 0)).toBe('page_1_line_0');
+  });
+
+  it('never starts a key array mid-page, which would misalign it with tmpScript', () => {
+    const store = useScriptConfigStore();
+    store.tmpScript['1'] = [makeLine(1, 1), makeLine(2, 1)];
+
+    store.insertBlankLine(1, 1, makeLine(null, 1));
+
+    expect(store.lineKeys['1']).toBeUndefined();
+    expect(store.getLineKey(1, 1)).toBe('page_1_line_1');
+  });
+
+  it('does not leak keys for an emptied or removed page', () => {
+    const store = useScriptConfigStore();
+    store.addPage(1, [makeLine(1, 1)]);
+    store.addPage(2, [makeLine(2, 1)]);
+
+    store.removePage(2);
+    expect(store.lineKeys['2']).toBeUndefined();
+    store.emptyScript();
+    expect(store.lineKeys).toEqual({});
+  });
+});

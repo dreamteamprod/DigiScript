@@ -86,7 +86,7 @@
       <BCol cols="12">
         <template
           v-for="(line, index) in currentPageLines"
-          :key="`page_${currentPage}_line_${index}`"
+          :key="scriptConfigStore.getLineKey(currentPage, index)"
         >
           <template v-if="!deletedLines.includes(index)">
             <ScriptLineEditor
@@ -645,17 +645,62 @@ function cutLinePart(linePartId: number): void {
   else linePartCuts.value.splice(idx, 1);
 }
 
+/** The cut-mode half of `saveScript`: persists the cut line parts. The store toasts its
+ * own failures, so on failure the user's pending cuts are simply kept. */
+async function saveCutsOnly(): Promise<void> {
+  savingInProgress.value = true;
+  try {
+    if (await scriptStore.saveCuts(linePartCuts.value)) {
+      linePartCuts.value = [...scriptStore.cuts];
+    }
+  } finally {
+    setupAutoSave();
+    savingInProgress.value = false;
+  }
+}
+
+/** Saves one page of `saveScript`'s page loop. `'skipped'` when the page is empty or has
+ * nothing to send, `'ok'` once it is saved and its local copy refreshed, `'failed'` if
+ * the server rejected it (the caller reports that and stops). */
+async function savePage(pageNo: number): Promise<'skipped' | 'ok' | 'failed'> {
+  const tmpPage = scriptConfigStore.getTmpPage(pageNo);
+  if (tmpPage.length === 0) return 'skipped';
+
+  const actualPage = scriptStore.getScriptPage(pageNo);
+  let ok: boolean;
+
+  if (actualPage.length === 0) {
+    ok = await scriptStore.saveNewPage(
+      pageNo,
+      tmpPage.filter((_, i) => !scriptConfigStore.getDeletedLines(pageNo).includes(i))
+    );
+  } else {
+    const status = computePageStatus(
+      actualPage,
+      tmpPage,
+      scriptConfigStore.getDeletedLines(pageNo),
+      scriptConfigStore.getInsertedLines(pageNo)
+    );
+    const hasChanges =
+      status.added.length > 0 ||
+      status.updated.length > 0 ||
+      status.deleted.length > 0 ||
+      status.inserted.length > 0;
+    if (!hasChanges) return 'skipped';
+
+    ok = await scriptStore.saveChangedPage(pageNo, { page: tmpPage, status });
+  }
+
+  if (!ok) return 'failed';
+  await scriptStore.loadScriptPage(pageNo);
+  scriptConfigStore.addPage(pageNo, scriptStore.getScriptPage(pageNo));
+  scriptConfigStore.resetTracking(pageNo);
+  return 'ok';
+}
+
 async function saveScript(): Promise<void> {
   if (scriptConfigStore.cutMode) {
-    savingInProgress.value = true;
-    try {
-      if (await scriptStore.saveCuts(linePartCuts.value)) {
-        linePartCuts.value = [...scriptStore.cuts];
-      }
-    } finally {
-      setupAutoSave();
-      savingInProgress.value = false;
-    }
+    await saveCutsOnly();
     return;
   }
 
@@ -685,39 +730,7 @@ async function saveScript(): Promise<void> {
 
   for (let pageNo = 1; pageNo <= maxPage; pageNo++) {
     curSavePage.value = pageNo;
-    const tmpPage = scriptConfigStore.getTmpPage(pageNo);
-    if (tmpPage.length === 0) continue;
-
-    const actualPage = scriptStore.getScriptPage(pageNo);
-    let ok: boolean;
-
-    if (actualPage.length === 0) {
-      ok = await scriptStore.saveNewPage(
-        pageNo,
-        tmpPage.filter((_, i) => !scriptConfigStore.getDeletedLines(pageNo).includes(i))
-      );
-    } else {
-      const status = computePageStatus(
-        actualPage,
-        tmpPage,
-        scriptConfigStore.getDeletedLines(pageNo),
-        scriptConfigStore.getInsertedLines(pageNo)
-      );
-      const hasChanges =
-        status.added.length > 0 ||
-        status.updated.length > 0 ||
-        status.deleted.length > 0 ||
-        status.inserted.length > 0;
-      if (!hasChanges) continue;
-
-      ok = await scriptStore.saveChangedPage(pageNo, { page: tmpPage, status });
-    }
-
-    if (ok) {
-      await scriptStore.loadScriptPage(pageNo);
-      scriptConfigStore.addPage(pageNo, scriptStore.getScriptPage(pageNo));
-      scriptConfigStore.resetTracking(pageNo);
-    } else {
+    if ((await savePage(pageNo)) === 'failed') {
       toast.error('Unable to save script. Please try again.');
       saveError.value = true;
       break;
@@ -880,23 +893,16 @@ async function loadBoundaryLines(): Promise<void> {
   const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
   const { page: endPage, lineIndex: endIndex } = bulkEditEnd.value;
 
-  if (startIndex === 0 && startPage > 1) await loadPage(startPage - 1);
-  const endPageLines = scriptConfigStore.getTmpPage(endPage);
-  if (endIndex === endPageLines.length - 1) await loadPage(endPage + 1);
+  // The neighbours may sit on an adjacent page (a soft-deleted row can push the nearest
+  // live one past the page edge), so make sure both are loaded.
+  if (startPage > 1) await loadPage(startPage - 1);
+  await loadPage(endPage + 1);
 
-  const startPageLines = scriptConfigStore.getTmpPage(startPage);
-  if (startIndex > 0) {
-    previousLineOfStart.value = startPageLines[startIndex - 1] ?? null;
-  } else if (startPage > 1) {
-    previousLineOfStart.value = scriptConfigStore.getTmpPage(startPage - 1).slice(-1)[0] ?? null;
-  } else {
-    previousLineOfStart.value = null;
-  }
-
-  nextLineOfEnd.value =
-    endIndex < endPageLines.length - 1
-      ? (endPageLines[endIndex + 1] ?? null)
-      : (scriptConfigStore.getTmpPage(endPage + 1)[0] ?? null);
+  // getPreviousLine/getNextLine skip soft-deleted rows, which a raw `lines[i - 1]` would
+  // wrongly offer as the boundary. The selection never leaves the current page (it is
+  // cleared on page change), so currentPage is both the start and end page here.
+  previousLineOfStart.value = getPreviousLine(startIndex);
+  nextLineOfEnd.value = getNextLine(endIndex);
 }
 
 function openSetCharacterDialog(): void {
