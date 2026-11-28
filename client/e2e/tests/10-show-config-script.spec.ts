@@ -11,6 +11,7 @@ import {
   confirmModal,
   waitForModalClosed,
   confirmDialog,
+  selectLines,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
 
@@ -171,6 +172,59 @@ test('clicking "Click to edit" on an existing saved line reopens it in place', a
   ).toBeVisible();
 });
 
+// ── Keyboard flow (Design E) ────────────────────────────────────────────────
+
+test('ArrowUp / ArrowDown move the open editor between lines, and Shift+Tab reaches the character select', async () => {
+  const openInput = () => page.locator('.line-editor-card input[type="text"]:visible');
+  const secondRow = page.locator('.script-line-row').filter({ hasText: 'That is the question' });
+  await secondRow.locator('.line-edit-trigger').click();
+  await expect(openInput()).toHaveValue('That is the question', { timeout: 5_000 });
+
+  // Up closes this line and opens the one above it — one editor open at a time.
+  await openInput().press('ArrowUp');
+  await expect(openInput()).toHaveValue('To be or not to be', { timeout: 5_000 });
+  await expect(page.locator('.line-editor-card')).toHaveCount(1);
+
+  await openInput().press('ArrowDown');
+  await expect(openInput()).toHaveValue('That is the question', { timeout: 5_000 });
+  await expect(page.locator('.line-editor-card')).toHaveCount(1);
+
+  // Shift+Tab goes back from the text field to the character select before it.
+  await openInput().press('Shift+Tab');
+  await expect(page.locator('.line-editor-card select:focus')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.line-editor-card')).toHaveCount(0, { timeout: 5_000 });
+});
+
+test('Esc and Enter leave an invalid line open instead of closing it', async () => {
+  await page.click('button:has-text("Add Dialogue")');
+  const card = page.locator('.line-editor-card');
+  await expect(card).toHaveCount(1, { timeout: 5_000 });
+
+  // A fresh dialogue line has no text or speaker yet, so it is invalid — and Done is
+  // disabled while it is, which proves the premise rather than assuming it.
+  await expect(card.getByRole('button', { name: 'Done' })).toBeDisabled();
+  const input = card.locator('input[type="text"]:visible');
+
+  // A bare count check right after the keypress would pass before a (buggy) close had
+  // any chance to run, so let the key handler and Vue's re-render finish first.
+  const settle = () =>
+    page.evaluate(
+      () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+    );
+  await input.press('Enter');
+  await settle();
+  await expect(card).toHaveCount(1);
+  await input.press('Escape');
+  await settle();
+  await expect(card).toHaveCount(1);
+
+  // Scoped to the card: an unscoped `.first()` can hit another Delete Line button.
+  await card.getByRole('button', { name: 'Delete Line' }).click();
+  await expect(card).toHaveCount(0, { timeout: 5_000 });
+});
+
 // ── Selection bar (Design E) ────────────────────────────────────────────────
 
 test('ticking a line number starts a selection and shows the selection bar', async () => {
@@ -224,6 +278,7 @@ test('clicking the range’s own start line shrinks it, keeping the rest selecte
   const secondLineRow = page
     .locator('.script-line-row')
     .filter({ hasText: 'That is the question' });
+  await selectLines(page, ['To be or not to be', 'That is the question']);
 
   await firstLineRow.hover();
   await firstLineRow.getByRole('checkbox').click();
@@ -231,23 +286,17 @@ test('clicking the range’s own start line shrinks it, keeping the rest selecte
   await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
   await expect(firstLineRow.getByRole('checkbox')).not.toBeChecked();
   await expect(secondLineRow.getByRole('checkbox')).toBeChecked();
-
-  // Restore the 2-line range — the next test assumes it's already selected.
-  await firstLineRow.hover();
-  await firstLineRow.getByRole('checkbox').click();
-  await expect(page.locator('text=2 lines selected')).toBeVisible({ timeout: 5_000 });
 });
 
 test('Set Character or Group changes the selected lines’ speaker', async () => {
   const firstLineRow = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  await selectLines(page, ['To be or not to be', 'That is the question']);
 
   await page.click('button:has-text("Set Character or Group")');
   await waitForModal(page, 'Set Character or Group');
   // Alice — a different character from Hamlet (who is already assigned) so the
   // apply produces a real change that scriptChanges can detect via deep equality.
-  await page.locator('.modal.show select').filter({ hasText: 'Alice' }).selectOption({
-    label: 'Alice',
-  });
+  await page.getByTestId('set-character-select').selectOption({ label: 'Alice' });
   await confirmModal(page);
   await waitForModalClosed(page);
 
@@ -267,10 +316,48 @@ test('Set Character or Group changes the selected lines’ speaker', async () =>
   });
 });
 
+test('Space on a focused line checkbox toggles the selection', async () => {
+  await selectLines(page, ['To be or not to be']);
+  await page.getByRole('button', { name: 'Clear Selection' }).click();
+
+  const checkbox = page
+    .locator('.script-line-row')
+    .filter({ hasText: 'To be or not to be' })
+    .getByRole('checkbox');
+  await checkbox.focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+  await expect(checkbox).toBeChecked();
+
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('toolbar', { name: 'Selected lines' })).toBeHidden({
+    timeout: 5_000,
+  });
+});
+
+test('Move to Scene applies the chosen act and scene to the selection and clears it', async () => {
+  // Only Act 1 / Scene 1 exist by this point in the serial suite (spec 05 deletes the
+  // others), so the move can't change a visible label — this covers the flow: the modal
+  // opens, offers the act/scene, applies, closes, and the selection clears.
+  await selectLines(page, ['To be or not to be', 'That is the question']);
+
+  await page.click('button:has-text("Move to Scene")');
+  await waitForModal(page, 'Move to Scene');
+  await page.getByTestId('bulk-act-select').selectOption({ label: 'Act 1' });
+  await page.getByTestId('bulk-scene-select').selectOption({ label: 'Scene 1' });
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  await expect(page.getByRole('toolbar', { name: 'Selected lines' })).toBeHidden({
+    timeout: 5_000,
+  });
+  await expect(
+    page.locator('.viewable-line').filter({ hasText: 'To be or not to be' })
+  ).toBeVisible();
+});
+
 test('Clear Selection removes the selection bar', async () => {
-  const row = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
-  await row.hover();
-  await row.getByRole('checkbox').click();
+  await selectLines(page, ['To be or not to be']);
   await expect(page.locator('button:has-text("Clear Selection")')).toBeVisible({
     timeout: 5_000,
   });
@@ -279,6 +366,22 @@ test('Clear Selection removes the selection bar', async () => {
   await expect(page.locator('button:has-text("Clear Selection")')).not.toBeVisible({
     timeout: 3_000,
   });
+});
+
+// Last in the selection block: it deletes lines from the unsaved edit, and ends the
+// editing session, discarding that — so later specs still find the saved script intact.
+test('Delete N Lines removes the whole selection', async () => {
+  await selectLines(page, ['To be or not to be', 'That is the question']);
+
+  await page.getByRole('button', { name: 'Delete 2 Lines' }).click();
+
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: 'To be or not to be' })
+  ).toHaveCount(0, { timeout: 5_000 });
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: 'That is the question' })
+  ).toHaveCount(0);
+  await expect(page.getByRole('toolbar', { name: 'Selected lines' })).toBeHidden();
 
   await page.click('button:has-text("Stop Editing")');
   await confirmDialog(page);

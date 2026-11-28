@@ -13,6 +13,7 @@
       <BFormSelect
         id="bulk-act-input"
         v-model="selectedActId"
+        data-testid="bulk-act-select"
         :options="actOptions"
         @update:model-value="selectedSceneId = null"
       />
@@ -21,6 +22,7 @@
       <BFormSelect
         id="bulk-scene-input"
         v-model="selectedSceneId"
+        data-testid="bulk-scene-select"
         :options="sceneOptions"
         :disabled="selectedActId == null"
       />

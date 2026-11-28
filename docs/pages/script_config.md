@@ -228,7 +228,9 @@ While editing, every line shows a checkbox beside its number. Ticking it selects
 - **Delete n Lines** — remove the whole selection.
 - **Clear Selection** — deselect everything without changing anything.
 
-**Esc**, **Enter**, and **↑**/**↓** (see [Editing a Line](#editing-a-line) above) only act while the "What they say" text field has focus, and **Esc**/**Enter** only close a line that currently passes validation — an incomplete line stays open until you either finish it or click **Delete Line**.
+![](../images/config_show/script_collab_selection_bar.png)
+
+**Esc**, **Enter**, and **↑**/**↓** (see [Editing a Line](#editing-a-line) above) act while the "What they say" text field has focus; in the collaborative editor, on a Cue or Gap line (which has no text field) the line's own card takes focus instead so **Esc** and **↑**/**↓** still work. **Esc**/**Enter** only close a line that currently passes validation — an incomplete line stays open until you either finish it or click **Delete Line**. **↑**/**↓** are navigation rather than "I'm finished", so they move to the neighbouring line even if the current one is incomplete; **Save** stays disabled, naming the offending line, until it is fixed. While an input method editor (IME) is composing text, **↑**/**↓** are left to the IME.
 
 #### Multi-Part Lines
 
