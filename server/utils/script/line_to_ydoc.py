@@ -76,6 +76,77 @@ def fetch_script_line_data(session: Session, revision_id: int) -> list[dict]:
     ]
 
 
+def _or_zero(value):
+    """Y.Doc maps cannot hold ``None`` here; the draft format uses 0 for "unset"."""
+    return value if value is not None else 0
+
+
+def _walk_linked_list(script_data: list[dict], revision_id: int):
+    """Yield each script line's data in linked-list order, starting at the head.
+
+    Yields nothing for an empty script or one with no head (no line without a
+    ``previous_line_id``). A composite FK constraint on
+    ``ScriptLineRevisionAssociation`` (revision_id, next_line_id) prevents dangling
+    pointers at the DB layer, but a cycle is still structurally possible — the
+    visited-set guard below is defense in depth against both.
+    """
+    # In-memory index for O(1) linked list traversal
+    data_by_line_id = {d["line_id"]: d for d in script_data}
+    current = next((d for d in script_data if d["previous_line_id"] is None), None)
+    visited: set[int] = set()
+
+    while current is not None:
+        if current["line_id"] in visited:
+            get_logger().warning(
+                f"build_ydoc: cycle detected in linked list for revision "
+                f"{revision_id} at line_id={current['line_id']} — stopping traversal"
+            )
+            return
+        visited.add(current["line_id"])
+        yield current
+
+        next_id = current["next_line_id"]
+        if next_id is not None and next_id not in data_by_line_id:
+            get_logger().warning(
+                f"build_ydoc: dangling next_line_id={next_id} for revision "
+                f"{revision_id} at line_id={current['line_id']} — "
+                f"remaining lines will not appear in the Y.Doc"
+            )
+        current = data_by_line_id.get(next_id) if next_id is not None else None
+
+
+def _fill_line_map(line_map: pycrdt.Map, line_data: dict) -> None:
+    """Populate an already-integrated line Y.Map from the line's data."""
+    line_map["_id"] = str(line_data["id"])
+    # Never rewritten: `_id` becomes the DB id when a save patches it, but
+    # clients address lines by `_uid` so they survive that patch.
+    line_map["_uid"] = str(line_data["id"])
+    line_map["act_id"] = _or_zero(line_data["act_id"])
+    line_map["scene_id"] = _or_zero(line_data["scene_id"])
+    line_map["line_type"] = _or_zero(line_data["line_type"])
+    line_map["stage_direction_style_id"] = _or_zero(
+        line_data["stage_direction_style_id"]
+    )
+
+    parts_array = pycrdt.Array()
+    line_map["parts"] = parts_array
+    for part_data in line_data["line_parts"]:
+        part_map = pycrdt.Map()
+        parts_array.append(part_map)
+        _fill_part_map(part_map, part_data)
+
+
+def _fill_part_map(part_map: pycrdt.Map, part_data: dict) -> None:
+    """Populate an already-integrated line-part Y.Map."""
+    part_map["_id"] = str(part_data["id"])
+    part_map["_uid"] = str(part_data["id"])
+    part_map["part_index"] = _or_zero(part_data["part_index"])
+    part_map["character_id"] = _or_zero(part_data["character_id"])
+    part_map["character_group_id"] = _or_zero(part_data["character_group_id"])
+    # Y.Text for concurrent text editing
+    part_map["line_text"] = pycrdt.Text(part_data["line_text"])
+
+
 def _build_ydoc_content(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
     """Build a Y.Doc holding the script's lines (no trailing page — see build_ydoc).
 
@@ -96,42 +167,10 @@ def _build_ydoc_content(script_data: list[dict], revision_id: int) -> pycrdt.Doc
     meta["revision_id"] = revision_id
     meta["last_saved_at"] = ""
 
-    # Handle empty script
-    if not script_data:
-        return doc
-
-    # Build in-memory index for O(1) linked list traversal
-    data_by_line_id = {d["line_id"]: d for d in script_data}
-
-    # Find head of linked list (the line with no previous_line_id)
-    head = None
-    for d in script_data:
-        if d["previous_line_id"] is None:
-            head = d
-            break
-
-    if head is None:
-        return doc
-
-    # Walk linked list, grouping lines by page. A composite FK constraint on
-    # ScriptLineRevisionAssociation (revision_id, next_line_id) prevents dangling
-    # pointers at the DB layer, but a cycle is still structurally possible — the
-    # visited-set guard below is defense in depth against both.
-    current = head
-    current_page = None
-    current_page_array = None
-    visited: set[int] = set()
-
-    while current is not None:
-        if current["line_id"] in visited:
-            get_logger().warning(
-                f"build_ydoc: cycle detected in linked list for revision "
-                f"{revision_id} at line_id={current['line_id']} — stopping traversal"
-            )
-            break
-        visited.add(current["line_id"])
-
-        line_data = current["line"]
+    current_page: str | None = None
+    current_page_array: pycrdt.Array | None = None
+    for entry in _walk_linked_list(script_data, revision_id):
+        line_data = entry["line"]
         page = line_data["page"]
 
         # Create new page array if page changed
@@ -141,66 +180,9 @@ def _build_ydoc_content(script_data: list[dict], revision_id: int) -> pycrdt.Doc
             current_page_array = pycrdt.Array()
             pages[current_page] = current_page_array
 
-        # Create line Y.Map
         line_map = pycrdt.Map()
         current_page_array.append(line_map)
-
-        line_map["_id"] = str(line_data["id"])
-        # Never rewritten: `_id` becomes the DB id when a save patches it, but
-        # clients address lines by `_uid` so they survive that patch.
-        line_map["_uid"] = str(line_data["id"])
-        line_map["act_id"] = (
-            line_data["act_id"] if line_data["act_id"] is not None else 0
-        )
-        line_map["scene_id"] = (
-            line_data["scene_id"] if line_data["scene_id"] is not None else 0
-        )
-        line_map["line_type"] = (
-            line_data["line_type"] if line_data["line_type"] is not None else 0
-        )
-        line_map["stage_direction_style_id"] = (
-            line_data["stage_direction_style_id"]
-            if line_data["stage_direction_style_id"] is not None
-            else 0
-        )
-
-        # Create parts Y.Array
-        parts_array = pycrdt.Array()
-        line_map["parts"] = parts_array
-
-        for part_data in line_data["line_parts"]:
-            part_map = pycrdt.Map()
-            parts_array.append(part_map)
-
-            part_map["_id"] = str(part_data["id"])
-            part_map["_uid"] = str(part_data["id"])
-            part_map["part_index"] = (
-                part_data["part_index"] if part_data["part_index"] is not None else 0
-            )
-            part_map["character_id"] = (
-                part_data["character_id"]
-                if part_data["character_id"] is not None
-                else 0
-            )
-            part_map["character_group_id"] = (
-                part_data["character_group_id"]
-                if part_data["character_group_id"] is not None
-                else 0
-            )
-
-            # Y.Text for concurrent text editing
-            text = pycrdt.Text(part_data["line_text"])
-            part_map["line_text"] = text
-
-        # Advance to next line in linked list
-        next_id = current["next_line_id"]
-        if next_id is not None and next_id not in data_by_line_id:
-            get_logger().warning(
-                f"build_ydoc: dangling next_line_id={next_id} for revision "
-                f"{revision_id} at line_id={current['line_id']} — "
-                f"remaining lines will not appear in the Y.Doc"
-            )
-        current = data_by_line_id.get(next_id) if next_id is not None else None
+        _fill_line_map(line_map, line_data)
 
     return doc
 
@@ -223,6 +205,33 @@ def numeric_page_keys(pages: pycrdt.Map) -> list[str]:
         and key.isdecimal()
         and str(int(key)) == key
     ]
+
+
+def _repair_non_array_pages(
+    pages: pycrdt.Map, numeric: list[int], repair: bool
+) -> list[int]:
+    """Replace any non-Y.Array page with an empty one (or raise if not repairing).
+
+    :returns: The page numbers that were replaced.
+    :raises ValueError: If a page is not a Y.Array and *repair* is False.
+    """
+    repaired_pages: list[int] = []
+    for page_num in numeric:
+        value = pages[str(page_num)]
+        if isinstance(value, pycrdt.Array):
+            continue
+        if not repair:
+            raise ValueError(
+                f"Page {page_num} is not a Y.Array; the draft is malformed"
+            )
+        get_logger().warning(
+            f"ensure_trailing_page: replacing non-array page {page_num} "
+            f"({type(value).__name__}) with an empty page; any content a "
+            f"client wrote there is discarded"
+        )
+        pages[str(page_num)] = pycrdt.Array()
+        repaired_pages.append(page_num)
+    return repaired_pages
 
 
 def ensure_trailing_page(
@@ -263,21 +272,7 @@ def ensure_trailing_page(
     last = numeric[-1] if numeric else 0
 
     state_before = doc.get_state()
-    repaired_pages: list[int] = []
-    for page_num in numeric:
-        value = pages[str(page_num)]
-        if not isinstance(value, pycrdt.Array):
-            if not repair:
-                raise ValueError(
-                    f"Page {page_num} is not a Y.Array; the draft is malformed"
-                )
-            get_logger().warning(
-                f"ensure_trailing_page: replacing non-array page {page_num} "
-                f"({type(value).__name__}) with an empty page; any content a "
-                f"client wrote there is discarded"
-            )
-            pages[str(page_num)] = pycrdt.Array()
-            repaired_pages.append(page_num)
+    repaired_pages = _repair_non_array_pages(pages, numeric, repair)
 
     if numeric and len(pages[str(last)]) == 0:
         update = doc.get_update(state_before) if repaired_pages else None
@@ -287,6 +282,12 @@ def ensure_trailing_page(
     return doc.get_update(state_before), repaired_pages
 
 
+def _backfill_uid(item) -> None:
+    """Set ``_uid`` to ``_id`` on a line or part Y.Map that has an ``_id`` but no ``_uid``."""
+    if "_uid" not in item and "_id" in item:
+        item["_uid"] = str(item["_id"])
+
+
 def backfill_uids(doc: pycrdt.Doc) -> None:
     """Give lines and parts of a draft that predates ``_uid`` a ``_uid`` equal to ``_id``.
 
@@ -294,15 +295,17 @@ def backfill_uids(doc: pycrdt.Doc) -> None:
     save rewrites, so such a draft would keep the write-after-save problem.
     """
     pages = doc.get("pages", type=pycrdt.Map)
-    for key in numeric_page_keys(pages):
-        if not isinstance(pages[key], pycrdt.Array):
-            continue  # malformed; the extractor reports it at save time
-        for line in pages[key]:
-            if "_uid" not in line and "_id" in line:
-                line["_uid"] = str(line["_id"])
+    page_arrays = (
+        pages[key]
+        for key in numeric_page_keys(pages)
+        # malformed pages are skipped; the extractor reports them at save time
+        if isinstance(pages[key], pycrdt.Array)
+    )
+    for page_array in page_arrays:
+        for line in page_array:
+            _backfill_uid(line)
             for part in line.get("parts", []):
-                if "_uid" not in part and "_id" in part:
-                    part["_uid"] = str(part["_id"])
+                _backfill_uid(part)
 
 
 def build_ydoc(script_data: list[dict], revision_id: int) -> pycrdt.Doc:
