@@ -16,6 +16,11 @@ if TYPE_CHECKING:
     from digi_server.app_server import DigiScriptServer
 
 
+# Name of the setting that switches the server between classic and collaborative
+# script editing; shared so no caller spells the key by hand.
+COLLAB_EDITING_SETTING = "collaborative_script_editing"
+
+
 def _get_version() -> str:
     try:
         # Get path to pyproject.toml (one directory up from digi_server)
@@ -50,6 +55,7 @@ class SettingsObject:
         hide_from_ui: bool = False,
         choice_options: Optional[list] = None,
         choice_labels: Optional[list] = None,
+        sensitive: bool = False,
     ):
         if val_type not in self.ALLOWED_TYPES:
             raise RuntimeError(
@@ -105,6 +111,9 @@ class SettingsObject:
         self.display_name = display_name
         self.help_text = help_text
         self.hide_from_ui = hide_from_ui
+        # Sensitive settings (e.g. server filesystem paths) are only ever disclosed to
+        # admins: every payload sent to other users or broadcast omits them.
+        self.sensitive = sensitive
         self.choice_options = choice_options
         self.choice_labels = choice_labels
 
@@ -112,7 +121,8 @@ class SettingsObject:
         self.value = self.default
         self._loaded = True
 
-    def set_value(self, value, spawn_callbacks=True):
+    def validate(self, value):
+        """Raise if *value* is not acceptable for this setting; change nothing."""
         if not isinstance(value, self.val_type):
             if value is None and not self._nullable:
                 raise RuntimeError(
@@ -129,6 +139,9 @@ class SettingsObject:
                 f"Value for {self.key} must be one of the following options: "
                 f"{self.choice_options}"
             )
+
+    def set_value(self, value, spawn_callbacks=True):
+        self.validate(value)
 
         changed = False
         if value != self.value:
@@ -169,7 +182,9 @@ class Settings:
 
         if not os.path.exists(self._base_path):
             get_logger().info(f"Creating base path {self._base_path}")
-            os.makedirs(self._base_path)
+            # exist_ok: parallel processes (e.g. pytest-xdist workers) can race
+            # between the exists() check and creation.
+            os.makedirs(self._base_path, exist_ok=True)
 
         if settings_path:
             self.settings_path = settings_path
@@ -181,7 +196,7 @@ class Settings:
             get_logger().info(
                 f"Creating settings path {os.path.dirname(self.settings_path)}"
             )
-            os.makedirs(os.path.dirname(self.settings_path))
+            os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
 
         self.categories: Dict[str : List[str]] = {"General": []}
         self.settings: Dict[str, SettingsObject] = {}
@@ -211,6 +226,7 @@ class Settings:
             False,
             nullable=False,
             display_name="Database Path",
+            sensitive=True,
         )
         self.define(
             "current_show",
@@ -223,19 +239,24 @@ class Settings:
         )
         self.define("debug_mode", bool, False, True, display_name="Enable Debug Mode")
         self.define(
-            "default_ui",
-            str,
-            "new",
+            COLLAB_EDITING_SETTING,
+            bool,
+            False,
             True,
-            display_name="Default UI Version",
-            help_text="Which UI version users are directed to by default. User preferences override this.",
-            choice_options=["old", "new"],
+            display_name="Collaborative Script Editing",
+            help_text=(
+                "Use the collaborative script editor, where several people can edit the "
+                "script at once. When off, the classic editor is used and only one "
+                "person can edit at a time. Only the new UI supports collaborative "
+                "editing. Cannot be changed while anyone is editing or cutting the script, "
+                "a collaborative session has people in it, or an unsaved draft exists."
+            ),
             category="General",
         )
         self.define(
             "log_level",
             str,
-            "DEBUG",
+            "INFO",
             True,
             self._application.regen_logging,
             display_name="Log Level",
@@ -250,6 +271,7 @@ class Settings:
             self._application.regen_logging,
             display_name="Application Log Path",
             category="Logging",
+            sensitive=True,
         )
         self.define(
             "max_log_mb",
@@ -272,10 +294,14 @@ class Settings:
         self.define(
             "log_redaction",
             bool,
-            False,
+            True,
             True,
             display_name="Enable Log Redaction",
-            help_text="When enabled, potentially sensitive information will be redacted from logs.",
+            help_text=(
+                "When enabled (the default), passwords, tokens and WebSocket message "
+                "contents are kept out of the logs. Disable only while debugging: "
+                "logs will then contain credentials and tokens."
+            ),
             category="Logging",
         )
         self.define(
@@ -295,6 +321,7 @@ class Settings:
             self._application.regen_logging,
             display_name="Database Log Path",
             category="DB Logging",
+            sensitive=True,
         )
         self.define(
             "db_max_log_mb",
@@ -321,15 +348,16 @@ class Settings:
             False,
             display_name="Compiled Script Path",
             help_text="Directory used to store compiled scripts.",
+            sensitive=True,
         )
         self.define(
-            "mdns_advertising",
-            bool,
-            True,
-            True,
-            callback_fn=self._application.toggle_mdns_advertising,
-            display_name="Enable Network Discovery (mDNS)",
-            help_text="Advertise this server on the local network for automatic discovery by desktop clients.",
+            "draft_script_path",
+            str,
+            os.path.join(self._base_path, "draft_scripts"),
+            False,
+            display_name="Draft Script Path",
+            help_text="Directory used to store collaborative editing draft files.",
+            sensitive=True,
         )
         self.define(
             "client_log_enabled",
@@ -360,6 +388,7 @@ class Settings:
             display_name="Client Log Path",
             help_text="Path to the log file for client-side log messages.",
             category="Client Logging",
+            sensitive=True,
         )
         self.define(
             "client_max_log_mb",
@@ -416,6 +445,23 @@ class Settings:
             ],
             category="Security",
         )
+        self.define(
+            "telemetry_enabled",
+            bool,
+            True,
+            True,
+            callback_fn=self._application.toggle_telemetry,
+            display_name="Enable Anonymous Usage Telemetry",
+            help_text=(
+                "Periodically sends anonymous, aggregate usage statistics (version, OS, "
+                "rough install size, feature adoption) to the DigiScript project to help "
+                "guide development. Contains no show content, user data, or other "
+                "identifying information. If the DIGISCRIPT_TELEMETRY environment variable "
+                "disables telemetry, it takes priority over this toggle even while this "
+                "shows as enabled."
+            ),
+            category="Telemetry",
+        )
 
     def define(
         self,
@@ -431,6 +477,7 @@ class Settings:
         choice_options: Optional[list] = None,
         choice_labels: Optional[list] = None,
         category: str = "General",
+        sensitive: bool = False,
     ):
         if key in self.settings:
             raise KeyError(f"Setting {key} is already defined")
@@ -447,6 +494,7 @@ class Settings:
             hide_from_ui,
             choice_options,
             choice_labels,
+            sensitive,
         )
         if category not in self.categories:
             self.categories[category] = [key]
@@ -457,15 +505,24 @@ class Settings:
         get_logger().info("Settings file deleted; recreating from in memory settings")
         self._save()
 
+    def _values(self, include_sensitive: bool) -> dict:
+        """Return the current value of every setting, omitting sensitive ones unless asked.
+
+        :param include_sensitive: Include settings defined with ``sensitive=True``.
+        """
+        return {
+            key: value.get_value()
+            for key, value in self.settings.items()
+            if include_sensitive or not value.sensitive
+        }
+
     def auto_reload_changes(self):
         get_logger().info("Settings file changed; auto reloading")
         self._load(spawn_callbacks=True)
 
-        settings_json = {}
-        for key, value in self.settings.items():
-            settings_json[key] = value.get_value()
+        settings_json = self._values(include_sensitive=False)
 
-        for client in self._application.clients:
+        for client in self._application.clients.copy():
             client.write_message(
                 {
                     "OP": "SETTINGS_CHANGED",
@@ -477,6 +534,7 @@ class Settings:
     def _load(self, spawn_callbacks=False):
         if os.path.exists(self.settings_path):
             # Read in the settings
+            needs_saving = False
             with open(self.settings_path, "r", encoding="UTF-8") as file_pointer:
                 settings = json.load(file_pointer)
                 for key, value in settings.items():
@@ -485,11 +543,11 @@ class Settings:
                             f"Setting {key} found in settings file is not "
                             f"defined, ignoring!"
                         )
+                        needs_saving = True
                     else:
                         self.settings[key].set_value(value, spawn_callbacks)
 
             # Set any missing settings to their defaults, and save if needed
-            needs_saving = False
             for key, value in self.settings.items():
                 if not value.is_loaded():
                     value.set_to_default()
@@ -526,6 +584,23 @@ class Settings:
                 raise KeyError(f"{key} is not a valid setting")
             return self.settings.get(key).get_value()
 
+    def validate(self, key, value):
+        """Raise if *value* would be refused for *key*; unknown keys are ignored (as ``set`` does)."""
+        if key in self.settings:
+            self.settings[key].validate(value)
+
+    def get_sync(self, key):
+        """Read a setting without awaiting, for callers that cannot be coroutines.
+
+        ``get`` only takes the lock to serialise with ``set``; the value itself is a
+        plain attribute, so a synchronous read is safe on the event loop.
+
+        :raises KeyError: If *key* is not a defined setting.
+        """
+        if key not in self.settings:
+            raise KeyError(f"{key} is not a valid setting")
+        return self.settings[key].get_value()
+
     async def set(self, key, item):
         changed = False
         async with self.lock:
@@ -549,18 +624,27 @@ class Settings:
             settings_json[key] = value.get_value()
         return settings_json
 
-    async def as_json(self):
+    async def as_json(self, include_sensitive: bool = False):
+        """Return all setting values plus the server version.
+
+        :param include_sensitive: Include sensitive settings. Only pass True for
+            administrators.
+        """
         async with self.lock:
-            settings_json = {}
-            for key, value in self.settings.items():
-                settings_json[key] = value.get_value()
-            # Add version for Electron client compatibility checking
+            settings_json = self._values(include_sensitive)
             settings_json["version"] = _get_version()
             return json.loads(json.dumps(settings_json))
 
-    async def raw_json(self):
+    async def raw_json(self, include_sensitive: bool = False):
+        """Return full setting metadata (type, default, help text, ...).
+
+        :param include_sensitive: Include sensitive settings. Only pass True for
+            administrators.
+        """
         async with self.lock:
             settings_json = {}
             for key, value in self.settings.items():
+                if not include_sensitive and value.sensitive:
+                    continue
                 settings_json[key] = value.as_json()
             return json.loads(json.dumps(settings_json))

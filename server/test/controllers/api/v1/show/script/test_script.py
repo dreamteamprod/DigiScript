@@ -294,9 +294,17 @@ class TestScriptCutsController(DigiScriptTestCase):
             session.flush()
             self.line_part_id = line_part.id
 
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+
             session.commit()
 
         self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
 
     def test_get_script_cuts(self):
         """Test GET /api/v1/show/script/cuts.
@@ -339,6 +347,28 @@ class TestScriptCutsController(DigiScriptTestCase):
             ).all()
             self.assertEqual(1, len(cuts))
             self.assertEqual(self.line_part_id, cuts[0].line_part_id)
+
+    def test_put_script_cuts_via_http(self):
+        """PUT /api/v1/show/script/cuts succeeds end-to-end via a real HTTP request.
+
+        ScriptCutsController.put is a synchronous handler decorated with
+        @no_active_script_draft, which must not assume every wrapped method
+        is async — regression test for exactly that bug.
+        """
+        response = self.fetch(
+            "/api/v1/show/script/cuts",
+            method="PUT",
+            body=tornado.escape.json_encode({"cuts": [self.line_part_id]}),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            cuts = session.scalars(
+                select(ScriptCuts).where(ScriptCuts.revision_id == self.revision_id)
+            ).all()
+        self.assertEqual(1, len(cuts))
+        self.assertEqual(self.line_part_id, cuts[0].line_part_id)
 
 
 class TestScriptMaxPageController(DigiScriptTestCase):
@@ -1844,14 +1874,9 @@ class TestLineTypeValidation(DigiScriptTestCase):
         self.assertIn("must contain text", response_body["message"])
 
 
-class TestPatchLinePartCountChange(DigiScriptTestCase):
-    """Regression tests for page-boundary corruption when line_parts count changes.
-
-    When a line's line_parts array grows, deep-object-diff classifies the line index
-    as both "added" and "updated". Previously, the backend treated this as "added"
-    (creating a new association without removing the old), which left a split
-    doubly-linked list and broke the page boundary.
-    """
+class _ScriptPatchTestSetup(DigiScriptTestCase):
+    """Seed a Show/Script/Revision/Act/Scene/Character/admin User and a ready
+    JWT, for PATCH regression tests against ``/api/v1/show/script``."""
 
     def setUp(self):
         super().setUp()
@@ -1900,7 +1925,7 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
             data={"user_id": self.user_id}
         )
 
-    def _make_line(self, page, line_id, parts, act_id=None, scene_id=None):
+    def _make_line(self, page, line_id, parts=1, act_id=None, scene_id=None, text=None):
         return {
             "id": line_id,
             "act_id": act_id if act_id is not None else self.act_id,
@@ -1914,12 +1939,22 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
                     "part_index": i,
                     "character_id": self.character_id,
                     "character_group_id": None,
-                    "line_text": f"Part {i}",
+                    "line_text": text if text is not None else f"Part {i}",
                 }
                 for i in range(parts)
             ],
             "stage_direction_style_id": None,
         }
+
+
+class TestPatchLinePartCountChange(_ScriptPatchTestSetup):
+    """Regression tests for page-boundary corruption when line_parts count changes.
+
+    When a line's line_parts array grows, deep-object-diff classifies the line index
+    as both "added" and "updated". Previously, the backend treated this as "added"
+    (creating a new association without removing the old), which left a split
+    doubly-linked list and broke the page boundary.
+    """
 
     def test_patch_existing_line_adding_line_part_does_not_corrupt_page(self):
         """PATCH a line with status added (misclassified by deep-object-diff when line_parts
@@ -2097,3 +2132,193 @@ class TestPatchLinePartCountChange(DigiScriptTestCase):
                 prev_line, "Page 2 first line must have a previous line"
             )
             self.assertEqual(1, prev_line.page, "Previous line must be on page 1")
+
+
+class TestPatchAppendNewLineToNonLastPage(_ScriptPatchTestSetup):
+    """Regression tests for the "stuck page" bug (collab mode could never reach
+    the real last page of a script).
+
+    A genuinely new line (no id) appended to the end of a page that is NOT the
+    script's last page is classified by the frontend diff as "added", the same
+    status used for a true end-of-script append. ``create_new_line`` used to
+    splice it in one-directionally: it set the new association's previous_line
+    but never its next_line, and never fixed the real next line's previous_line
+    — silently severing the forward chain to every page after it, even though
+    those associations still exist in the table. The classic per-page GET
+    endpoint never notices (it only needs local, per-page ordering), which is
+    why collaborative mode — which walks the whole document as one chain — was
+    the only place this ever surfaced, as an editor that could never page past
+    the break.
+    """
+
+    def test_appending_a_blank_line_to_page_one_preserves_the_link_to_page_two(self):
+        # Page 1 has one line, page 2 has one line (this is what makes page 1
+        # "not the last page" — the scenario that `addBlankLine` never excludes).
+        post_p1 = [self._make_line(1, None, text="Page 1 line")]
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(post_p1),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        post_p2 = [self._make_line(2, None, text="Page 2 line")]
+        response = self.fetch(
+            "/api/v1/show/script?page=2",
+            method="POST",
+            body=tornado.escape.json_encode(post_p2),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        line1_id = tornado.escape.json_decode(
+            self.fetch(
+                "/api/v1/show/script?page=1",
+                headers={"Authorization": f"Bearer {self.token}"},
+            ).body
+        )["lines"][0]["id"]
+        line2_id = tornado.escape.json_decode(
+            self.fetch(
+                "/api/v1/show/script?page=2",
+                headers={"Authorization": f"Bearer {self.token}"},
+            ).body
+        )["lines"][0]["id"]
+
+        # PATCH page 1: the existing line plus one brand-new blank line appended
+        # after it — exactly what the "add line" button sends, with status=added
+        # on the new (id == None) index, same as `addBlankLine` in scriptConfig.ts.
+        patch_p1 = {
+            "page": [
+                self._make_line(1, line1_id, text="Page 1 line"),
+                self._make_line(1, None, text="Appended blank line"),
+            ],
+            "status": {"added": [1], "updated": [], "deleted": [], "inserted": []},
+        }
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="PATCH",
+            body=tornado.escape.json_encode(patch_p1),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision_id
+                )
+            ).all()
+            by_line = {a.line_id: a for a in assocs}
+            self.assertEqual(3, len(assocs))
+
+            appended = next(a for a in assocs if a.line_id not in (line1_id, line2_id))
+
+            # The new line must sit between the two original lines in both
+            # directions — not dead-end, and not skip over line 2.
+            self.assertEqual(appended.previous_line_id, line1_id)
+            self.assertEqual(
+                appended.next_line_id,
+                line2_id,
+                "Appending to a non-last page must not sever the link to the "
+                "next page's first line",
+            )
+            self.assertEqual(by_line[line1_id].next_line_id, appended.line_id)
+            self.assertEqual(by_line[line2_id].previous_line_id, appended.line_id)
+
+            # A full head-to-tail walk must reach every line.
+            head = next(a for a in assocs if a.previous_line_id is None)
+            walked = []
+            current = head
+            while current is not None:
+                walked.append(current.line_id)
+                current = by_line.get(current.next_line_id)
+            self.assertEqual(3, len(walked))
+
+
+class TestPostNewPageAfterEmptyingAMiddlePage(_ScriptPatchTestSetup):
+    """Regression tests for the second entry point to this PR's splice bug:
+    the classic POST "new page" handler had the identical
+    ``previous_lines[-1].next_line_id = line_obj.id`` overwrite, reachable by
+    POSTing a page's content back after every line on it was deleted (rather
+    than PATCHing it with an "added"/"inserted" line) — the same "stuck page"
+    symptom could resurface through this unfixed path.
+    """
+
+    def _post_page(self, page, text):
+        response = self.fetch(
+            f"/api/v1/show/script?page={page}",
+            method="POST",
+            body=tornado.escape.json_encode([self._make_line(page, None, text=text)]),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+        return tornado.escape.json_decode(
+            self.fetch(
+                f"/api/v1/show/script?page={page}",
+                headers={"Authorization": f"Bearer {self.token}"},
+            ).body
+        )["lines"][0]["id"]
+
+    def _empty_page_by_bridging_neighbours(self, session, emptied_line_id):
+        """Delete *emptied_line_id*'s association and bridge its neighbours
+        directly — simulating the state after that page's last line was
+        properly deleted (not what this test is exercising), so the POST
+        handler's own splice logic is what's actually under test."""
+        assoc = session.get(
+            ScriptLineRevisionAssociation, (self.revision_id, emptied_line_id)
+        )
+        prev_assoc, next_assoc = assoc.previous_line, assoc.next_line
+        if prev_assoc is not None:
+            prev_a = session.get(
+                ScriptLineRevisionAssociation, (self.revision_id, prev_assoc.id)
+            )
+            prev_a.next_line_id = next_assoc.id if next_assoc else None
+        if next_assoc is not None:
+            next_a = session.get(
+                ScriptLineRevisionAssociation, (self.revision_id, next_assoc.id)
+            )
+            next_a.previous_line_id = prev_assoc.id if prev_assoc else None
+        session.delete(assoc)
+        session.commit()
+
+    def test_repopulating_an_emptied_middle_page_preserves_the_link_onward(self):
+        line1_id = self._post_page(1, "Page 1 line")
+        line2_id = self._post_page(2, "Page 2 line")
+        line3_id = self._post_page(3, "Page 3 line")
+
+        with self._app.get_db().sessionmaker() as session:
+            self._empty_page_by_bridging_neighbours(session, line2_id)
+
+        new_line2_id = self._post_page(2, "Repopulated page 2 line")
+
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == self.revision_id
+                )
+            ).all()
+            by_line = {a.line_id: a for a in assocs}
+            self.assertEqual(3, len(assocs))  # line1, line3, and the new page-2 line
+
+            self.assertEqual(by_line[line1_id].next_line_id, new_line2_id)
+            self.assertEqual(by_line[new_line2_id].previous_line_id, line1_id)
+            self.assertEqual(
+                by_line[new_line2_id].next_line_id,
+                line3_id,
+                "Re-POSTing a page after it was emptied must not sever the "
+                "link to the next page",
+            )
+            self.assertEqual(by_line[line3_id].previous_line_id, new_line2_id)
+
+    # A dedicated test for the dangling-pointer / 409 branch (previous_lines[-1]
+    # .next_line_id pointing at a line with no association in this revision) was
+    # tried and dropped: the composite self-referential FK on next_line_id
+    # (deferred, but still enforced at commit) already makes that state
+    # impossible to construct through the app's own engine, including for test
+    # setup — which is exactly why it's a defensive branch rather than a
+    # reachable one under normal operation. The identical logic in
+    # create_new_line has a direct test (test_line_helpers.py) that exercises
+    # it pre-commit, where it actually would manifest if it ever did (e.g. via
+    # a migration that disables FK enforcement, as this PR's other findings
+    # already established is possible).

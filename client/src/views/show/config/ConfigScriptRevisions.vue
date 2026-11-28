@@ -1,50 +1,30 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row v-if="!loading">
-      <b-col>
-        <b-tabs content-class="mt-3">
-          <b-tab title="Revisions" active>
-            <script-revisions />
-          </b-tab>
-          <b-tab title="Compiled Scripts">
-            <compiled-scripts />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-    </b-row>
-    <b-row v-else>
-      <b-col>
-        <div v-if="loading" class="text-center py-5">
-          <b-spinner label="Loading" />
-        </div>
-      </b-col>
-    </b-row>
-  </b-container>
+  <BContainer class="mx-0" fluid>
+    <BRow v-if="!loading">
+      <BCol>
+        <BTabs content-class="mt-3">
+          <BTab title="Revisions" active><ScriptRevisions /></BTab>
+          <BTab title="Compiled Scripts"><CompiledScripts /></BTab>
+        </BTabs>
+      </BCol>
+    </BRow>
+    <BRow v-else>
+      <BCol class="text-center py-5"><BSpinner label="Loading..." /></BCol>
+    </BRow>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { mapActions } from 'vuex';
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useShowStore } from '@/stores/show';
+import ScriptRevisions from '@/components/show/config/script/ScriptRevisions.vue';
+import CompiledScripts from '@/components/show/config/script/CompiledScripts.vue';
 
-import ScriptRevisions from '@/vue_components/show/config/script/ScriptRevisions.vue';
-import CompiledScripts from '@/vue_components/show/config/script/CompiledScripts.vue';
+const showStore = useShowStore();
+const loading = ref(true);
 
-export default defineComponent({
-  name: 'ConfigScriptRevisions',
-  components: { CompiledScripts, ScriptRevisions },
-  data() {
-    return {
-      loading: true,
-    };
-  },
-  async mounted(): Promise<void> {
-    await (this as any).GET_SCRIPT_REVISIONS();
-    this.loading = false;
-  },
-  methods: {
-    ...mapActions(['GET_SCRIPT_REVISIONS']),
-  },
+onMounted(async () => {
+  await showStore.getScriptRevisions();
+  loading.value = false;
 });
 </script>
-
-<style scoped></style>

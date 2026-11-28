@@ -25,7 +25,7 @@ jobs:
         run: |
           # Build and run the docker image from the target branch
           docker build -t digiscript:target .
-          docker run -d --name digiscript-target -p 8081:8080 -v ${{ github.workspace }}/db-conf-mount:/server/conf digiscript:target
+          docker run -d --name digiscript-target -p 8081:8080 -e DIGISCRIPT_TELEMETRY=0 -v ${{ github.workspace }}/db-conf-mount:/server/conf digiscript:target
           
           # Wait for the container to initialize
           timeout=30

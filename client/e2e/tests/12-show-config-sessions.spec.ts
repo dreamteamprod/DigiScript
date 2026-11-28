@@ -1,0 +1,114 @@
+/**
+ * Show Config — Sessions tab: session start via the tab button + session tags CRUD.
+ * Spec 13 covers session start/stop via the navbar.
+ */
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import {
+  UI_BASE,
+  loginAsAdmin,
+  waitForAppReady,
+  waitForModal,
+  confirmModal,
+  waitForModalClosed,
+  confirmDialog,
+} from '../helpers.js';
+import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
+
+test.describe.configure({ mode: 'serial' });
+
+registerRetryHooks();
+
+let ctx: BrowserContext;
+let page: Page;
+
+test.beforeAll(async ({ browser }) => {
+  ctx = await newContext(browser);
+  page = await ctx.newPage();
+  await loginAsAdmin(page);
+  await page.goto(`${UI_BASE}/show-config/sessions`);
+  await waitForAppReady(page);
+});
+
+test.afterAll(async () => {
+  await ctx.close();
+});
+
+// ── Sessions list ─────────────────────────────────────────────────────────
+
+test('Sessions tab renders', async () => {
+  await expect(page.locator('table').first()).toBeVisible({ timeout: 10_000 });
+});
+
+// ── Tags ─────────────────────────────────────────────────────────────────
+
+test('switches to Tags sub-tab', async () => {
+  await page.click('.nav-link:has-text("Tags"), button[role="tab"]:has-text("Tags")');
+  await expect(page.locator('button:has-text("New Tag")')).toBeVisible();
+});
+
+test('creates a session tag', async () => {
+  await page.click('button:has-text("New Tag")');
+  await waitForModal(page, 'Add Session Tag');
+  await page.fill('#new-tag-name', 'Tech Run');
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("Tech Run")')).toBeVisible();
+});
+
+test('edits a session tag', async () => {
+  const row = page.locator('tr', { has: page.locator('td:has-text("Tech Run")') });
+  await row.locator('button:has-text("Edit")').click();
+  await waitForModal(page, 'Edit Session Tag');
+  await page.fill('#edit-tag-name', 'Tech Run (Edited)');
+  await confirmModal(page);
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("Tech Run (Edited)")')).toBeVisible();
+});
+
+test('deletes a session tag', async () => {
+  const row = page.locator('tr', { has: page.locator('td:has-text("Tech Run (Edited)")') });
+  await row.locator('button:has-text("Delete")').click();
+  await confirmDialog(page);
+  await expect(page.locator('td:has-text("Tech Run (Edited)")')).not.toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+// ── Session start via the tab button ─────────────────────────────────────
+
+test('switches back to Sessions sub-tab', async () => {
+  await page.click('button[role="tab"]:has-text("Sessions")');
+  await expect(page.locator('button.btn-success:has-text("Start Session")')).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+test('starts a session via the Sessions tab Start button', async () => {
+  await page.click('button.btn-success:has-text("Start Session")');
+  // START_SHOW WS message pushes all clients to /live
+  await page.waitForURL(`${UI_BASE}/live`, { timeout: 10_000 });
+});
+
+test('stops the session via the navbar to restore state for later specs', async () => {
+  await page.locator('text=Live Config').click();
+  await page.click('button:has-text("Stop Session")');
+  await confirmDialog(page);
+  await expect(page.locator('a:has-text("Live")')).toHaveClass(/disabled/, { timeout: 10_000 });
+});
+
+test('the finished session appears in the Sessions list', async () => {
+  await page.goto(`${UI_BASE}/show-config/sessions`);
+  await waitForAppReady(page);
+  const rows = page.locator('.tab-pane.active table tbody tr');
+  await expect(rows.first()).toBeVisible({ timeout: 10_000 });
+  // Start/End/Run times are wall-clock values of this run.
+  const cell = (n: number) => page.locator(`.tab-pane.active table tbody tr td:nth-child(${n})`);
+  await docShot(page, 'config_show/sessions', {
+    fixText: [
+      { locator: cell(1), text: '2025-02-14 19:25:03' },
+      { locator: cell(2), text: '2025-02-14 22:41:37' },
+      { locator: cell(3), text: '03:16:34' },
+    ],
+  });
+});

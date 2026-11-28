@@ -1,6 +1,6 @@
 ## User Settings
 
-DigiScript provides personal settings that each user can configure for their own account. These settings are accessed by clicking on your username in the top-right navigation bar and are organized into five tabs: About, Settings, Stage Direction Styles, Cue Colour Preferences, and API Tokens.
+DigiScript provides personal settings that each user can configure for their own account. These settings are accessed by clicking on your username in the top-right navigation bar and are organized into six tabs: About, Settings, Stage Direction Styles, Cue Colour Preferences, Change Password, and API Tokens.
 
 ### About
 
@@ -88,6 +88,14 @@ The preview shows the cue button with automatic text colour adjustment to ensure
 
 **Note**: These colour overrides are personal to your account only. Other users will continue to see the show's default cue colours. Your overrides apply in both the live performance view and the configuration views.
 
+### Change Password
+
+Change your own account password from this tab, without needing an admin reset:
+
+![](../images/user_settings/change_password_tab.png)
+
+Enter your **Current Password**, then a **New Password** (8–72 characters) and confirmation, and click **Change Password** to apply it immediately.
+
 ### API Tokens
 
 API tokens allow external applications to authenticate with DigiScript and perform actions on your behalf:
@@ -104,5 +112,7 @@ API tokens allow external applications to authenticate with DigiScript and perfo
 
 - **Regenerate**: Creates a new token, invalidating the previous one
 - **Revoke**: Permanently removes the token and prevents it from being used
+
+Tokens are sent unchanged in the `X-API-Key` header. DigiScript stores only a one-way hash of the token. Tokens created by earlier versions of DigiScript keep working and are upgraded to the new storage format automatically the first time they are used.
 
 API tokens should be treated like passwords and kept secure. If you believe a token has been compromised, regenerate or revoke it immediately.

@@ -1,12 +1,14 @@
 import { defineConfig } from 'vitest/config';
-import vue from '@vitejs/plugin-vue2';
-import path from 'path';
+import vue from '@vitejs/plugin-vue';
+import path from 'node:path';
 
 export default defineConfig({
   plugins: [vue()],
   test: {
     globals: true,
     environment: 'jsdom',
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
+    passWithNoTests: true,
     reporters: ['default', 'junit'],
     outputFile: {
       junit: './junit/test-results.xml',

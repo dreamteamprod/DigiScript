@@ -18,81 +18,31 @@ DigiScript uses split front-end and back-end architecture with the following key
 
 - **Real-time WebSocket protocol** with leader-follower architecture for synchronized multi-client operation
 - **SQLAlchemy 2.0 ORM** with sophisticated revision-scoped associations for managing complex script relationships
-- **Vuex state management** with modular structure and localStorage persistence for reactive UIs
+- **Pinia state management** with feature-based stores and persisted-state plugin for reactive UIs
 - **JWT authentication** with role-based access control using bitmask permissions
 - **Compiled script caching** with gzip compression for fast live show performance
 - **Automatic database migrations** via Alembic, checked on server startup
 
 ## Project Structure
 
-DigiScript consists of three main components:
+DigiScript consists of two main components:
 
 - **`server/`** - Python Tornado backend with SQLite database
-- **`client/`** - Vue.js 2 frontend (builds to `server/static/` for web, or `client/dist-electron/` for Electron)
-- **`electron/`** - Electron desktop application wrapper
+- **`client/`** - Vue.js 3 frontend, builds to `server/static/`
 
 Refer to [DeepWiki](https://deepwiki.com/dreamteamprod/DigiScript) for detailed documentation on the architecture and design.
 
 ## Building the Web Client
 
+The frontend uses [pnpm](https://pnpm.io/). Node 24.15 or newer is required (an older 24.x fails on transitive dependencies' engine ranges). Node 24 ships Corepack but leaves it switched off, so run `corepack enable` once; pnpm will then use the version pinned in `client/package.json`'s `packageManager` field. Running `npm install` in this directory is refused on purpose (`devEngines`), so the pnpm lockfile stays the only source of truth.
+
 ```shell
 cd client
-npm ci
-npm run build
+pnpm install
+pnpm run build
 ```
 
 This outputs the built frontend to `../server/static/` for serving by the Python backend.
-
-## Building the Electron Desktop App
-
-The Electron app is a standalone desktop client that connects to a DigiScript server over the network.
-
-### Prerequisites
-
-- Node.js 24.x
-- npm 11.x
-
-### Development
-
-```shell
-# Build the Electron renderer (Vue app configured for Electron)
-cd client
-BUILD_TARGET=electron npm run build
-
-# Run the Electron app in development mode
-cd ../electron
-npm ci
-npm run dev
-```
-
-### Building Installers
-
-```shell
-# Full build (renderer + installers)
-cd electron
-npm run build
-
-# Or step by step:
-cd client
-BUILD_TARGET=electron npm run build
-cd ../electron
-npm run package  # Creates unpacked app
-npm run make     # Creates platform installers
-```
-
-Output locations:
-- **Windows**: `electron/out/make/squirrel.windows/x64/*.exe`
-- **macOS**: `electron/out/make/*.zip`
-- **Linux**: `electron/out/make/deb/x64/*.deb` and `electron/out/make/rpm/x64/*.rpm`
-
-### Electron vs Web Build
-
-The `BUILD_TARGET` environment variable controls how the Vue client is built:
-
-| Build Target | Output Directory | Base URL | Use Case |
-|--------------|------------------|----------|----------|
-| (default) | `server/static/` | `/` | Web client served by Python backend |
-| `electron` | `client/dist-electron/` | `./` (relative) | Electron app loads files locally |
 
 ## Contributing
 
@@ -101,17 +51,13 @@ Contributions are welcome! Please ensure all client and server code passes linti
 ```shell
 # Client linting and type checking
 cd client
-npm run lint
-npm run typecheck
+pnpm run lint
+pnpm run typecheck
 
 # Server linting
 cd server
 ruff check server/
 ruff format server/
-
-# Electron linting
-cd electron
-npm run lint
 ```
 
 When creating pull requests for new features, target the `dev` branch.
@@ -132,10 +78,10 @@ Messages should be structured with the following data format:
 }
 ```
 
-On the client side, the messages are handled in 2 places (in the [Vuex store](client/src/store/store.ts)):
+On the client side, the messages are handled in [`useWebSocket.ts`](client/src/composables/useWebSocket.ts):
 
-1. Vuex mutation `SOCKET_ONMESSAGE` is called for every message, and should handle each OP code as needed
-2. Vuex action `SOME_ACTION` needs to be defined, and is called only if the data contains an `ACTION` key/value pair
+1. `handleMessage()` switches on `OP` for direct handling
+2. If an `ACTION` key is present, `dispatchAction()` is called. Dispatch is convention-based: it scans all active Pinia stores for a camelCase action matching the WS `ACTION` name (e.g. `GET_CUE_TYPES` → `getCueTypes()`) — no registration map is needed, just define the matching Pinia action
 
 ### Client -> Server
 

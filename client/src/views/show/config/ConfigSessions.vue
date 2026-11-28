@@ -1,47 +1,40 @@
 <template>
-  <b-container class="mx-0" fluid>
-    <b-row>
-      <b-col v-if="loaded">
-        <b-tabs content-class="mt-3">
-          <b-tab title="Sessions" active>
-            <session-list />
-          </b-tab>
-          <b-tab title="Tags">
-            <session-tag-list />
-          </b-tab>
-        </b-tabs>
-      </b-col>
-      <b-col v-else>
+  <BContainer class="mx-0" fluid>
+    <BRow>
+      <BCol v-if="loaded">
+        <BTabs content-class="mt-3">
+          <BTab title="Sessions" active>
+            <SessionList />
+          </BTab>
+          <BTab title="Tags">
+            <SessionTagList />
+          </BTab>
+        </BTabs>
+      </BCol>
+      <BCol v-else>
         <div class="text-center center-spinner">
-          <b-spinner style="width: 10rem; height: 10rem" variant="info" />
+          <BSpinner style="width: 10rem; height: 10rem" variant="info" />
         </div>
-      </b-col>
-    </b-row>
-  </b-container>
+      </BCol>
+    </BRow>
+  </BContainer>
 </template>
 
-<script lang="ts">
-import { defineComponent } from 'vue';
-import { mapActions } from 'vuex';
-import SessionList from '@/vue_components/show/config/sessions/SessionList.vue';
-import SessionTagList from '@/vue_components/show/config/sessions/SessionTagList.vue';
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { useShowStore } from '@/stores/show';
+import SessionList from '@/components/show/config/sessions/SessionList.vue';
+import SessionTagList from '@/components/show/config/sessions/SessionTagList.vue';
 
-export default defineComponent({
-  name: 'ConfigSessions',
-  components: { SessionTagList, SessionList },
-  data() {
-    return {
-      loaded: false,
-    };
-  },
-  async mounted(): Promise<void> {
-    await (this as any).GET_SHOW_SESSION_DATA();
-    await (this as any).GET_SESSION_TAGS();
-    await (this as any).GET_SCRIPT_REVISIONS();
-    this.loaded = true;
-  },
-  methods: {
-    ...mapActions(['GET_SHOW_SESSION_DATA', 'GET_SESSION_TAGS', 'GET_SCRIPT_REVISIONS']),
-  },
+const showStore = useShowStore();
+const loaded = ref(false);
+
+onMounted(async () => {
+  await Promise.all([
+    showStore.getShowSessionData(),
+    showStore.getSessionTags(),
+    showStore.getScriptRevisions(),
+  ]);
+  loaded.value = true;
 });
 </script>

@@ -66,3 +66,32 @@ class TestSessionsController(DigiScriptTestCase):
         self.assertEqual(200, response.code)
         response_body = tornado.escape.json_decode(response.body)
         self.assertEqual(2, len(response_body["sessions"]))
+
+    def test_start_session_invalid_json_returns_400(self):
+        """A malformed body reaches the JSON helper (a show is loaded) and gets 400."""
+        token = self._create_and_login_admin()
+        for body in ("nope", "[1]"):
+            with self.subTest(body=body):
+                response = self.fetch(
+                    "/api/v1/show/sessions/start",
+                    method="POST",
+                    body=body,
+                    headers={"Authorization": f"Bearer {token}"},
+                    raise_error=False,
+                )
+                self.assertEqual(400, response.code)
+
+    def test_start_session_valid_json_reaches_handler(self):
+        """Control for the test above: a valid body gets the handler's own error."""
+        token = self._create_and_login_admin()
+        response = self.fetch(
+            "/api/v1/show/sessions/start",
+            method="POST",
+            body="{}",
+            headers={"Authorization": f"Bearer {token}"},
+            raise_error=False,
+        )
+        self.assertEqual(400, response.code)
+        self.assertEqual(
+            "session_id missing", tornado.escape.json_decode(response.body)["message"]
+        )

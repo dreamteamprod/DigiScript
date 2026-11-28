@@ -1,6 +1,6 @@
 import collections
 import difflib
-from typing import List
+from typing import Iterable, List
 
 from sqlalchemy import func, select
 from tornado import escape
@@ -21,8 +21,15 @@ from controllers.api.constants import (
     ERROR_PREFIX_MISSING,
     ERROR_SHOW_NOT_FOUND,
 )
+from digi_server.logger import get_logger
 from models.cue import Cue, CueAssociation, CueGroup, CueType
-from models.script import Script, ScriptLine, ScriptLineType, ScriptRevision
+from models.script import (
+    Script,
+    ScriptLine,
+    ScriptLineRevisionAssociation,
+    ScriptLineType,
+    ScriptRevision,
+)
 from models.show import Show
 from models.user import User
 from rbac.role import Role
@@ -231,6 +238,129 @@ class CueTypesImportController(BaseAPIController):
         self.finish({"cue_type_groups": list(shows_map.values())})
 
 
+# Cap on line ids written to a single log line, so corrupted data can't flood logs.
+_LOG_ID_SAMPLE = 20
+
+
+def _sample_ids(ids: Iterable[int]) -> str:
+    """Format line ids for a log line, sorted and capped at ``_LOG_ID_SAMPLE``."""
+    ordered = sorted(ids)
+    if len(ordered) <= _LOG_ID_SAMPLE:
+        return str(ordered)
+    return f"{ordered[:_LOG_ID_SAMPLE]} (+{len(ordered) - _LOG_ID_SAMPLE} more)"
+
+
+def get_line_positions(
+    session, revision_id: int, line_ids: Iterable[int]
+) -> dict[str, dict]:
+    """Work out where each of the given lines sits in a revision's script.
+
+    Not to be confused with ``CueAssociation.line_position``, which orders cues
+    *within* a line. This reports where a *line* sits within the script.
+
+    The revision's lines form a linked list (``previous_line_id`` /
+    ``next_line_id``). All of the revision's associations are loaded in a single
+    query and the list is walked in memory, so the cost is one query plus one
+    pass over the whole revision, however many lines are asked about.
+
+    If the revision has no lines at all, or its list does not have exactly one
+    head, positions would be unreliable, so an error is logged and an empty
+    mapping returned; the caller must treat a missing entry as "position
+    unknown", never as the first line. Lines that cannot be reached from the head
+    (e.g. not linked into the chain) are left out. A warning is logged if any
+    line in the revision is unreachable, naming which of the requested lines are
+    affected, and another for requested lines with no association in this
+    revision. A cycle back into the chain simply ends the walk.
+
+    :param session: Open database session.
+    :param revision_id: The revision to look the lines up in.
+    :param line_ids: Iterable of line IDs to report positions for.
+    :returns: Mapping of ``str(line_id)`` to ``{"page", "index", "act_id",
+        "scene_id"}``, where ``index`` is the zero-based position of the line
+        within its page, in script order. Lines that are not in the revision, or
+        not reachable from the head of its linked list, are omitted.
+    """
+    wanted = set(line_ids)
+    if not wanted:
+        return {}
+
+    rows = session.execute(
+        select(
+            ScriptLineRevisionAssociation.line_id,
+            ScriptLineRevisionAssociation.previous_line_id,
+            ScriptLineRevisionAssociation.next_line_id,
+            ScriptLine.page,
+            ScriptLine.act_id,
+            ScriptLine.scene_id,
+        )
+        .join(ScriptLine, ScriptLine.id == ScriptLineRevisionAssociation.line_id)
+        .where(ScriptLineRevisionAssociation.revision_id == revision_id)
+    ).all()
+
+    by_id = {row.line_id: row for row in rows}
+    heads = [row.line_id for row in rows if row.previous_line_id is None]
+
+    if not rows:
+        get_logger().error(
+            "Revision %s has no line associations but %d line(s) were requested; "
+            "line positions unavailable",
+            revision_id,
+            len(wanted),
+        )
+        return {}
+
+    if len(heads) != 1:
+        # Several heads (or none) means the chain is broken; merging chains would
+        # give plausible but wrong indexes, so report none.
+        get_logger().error(
+            "Revision %s line chain has %d heads (expected 1): %s; "
+            "line positions unavailable",
+            revision_id,
+            len(heads),
+            _sample_ids(heads),
+        )
+        return {}
+
+    positions: dict = {}
+    page_counts: dict = collections.defaultdict(int)
+    visited: set = set()
+    current = heads[0]
+    while current in by_id and current not in visited:
+        visited.add(current)
+        row = by_id[current]
+        index = page_counts[row.page]
+        page_counts[row.page] += 1
+        if current in wanted:
+            positions[str(current)] = {
+                "page": row.page,
+                "index": index,
+                "act_id": row.act_id,
+                "scene_id": row.scene_id,
+            }
+        current = row.next_line_id
+
+    if len(visited) != len(rows):
+        unreachable = wanted & (by_id.keys() - visited)
+        get_logger().warning(
+            "Revision %s line chain is inconsistent: %d/%d lines reachable "
+            "from the head; %d requested line(s) unreachable: %s",
+            revision_id,
+            len(visited),
+            len(rows),
+            len(unreachable),
+            _sample_ids(unreachable),
+        )
+    missing = wanted - by_id.keys()
+    if missing:
+        get_logger().warning(
+            "Revision %s: %d requested line(s) have no association in the revision: %s",
+            revision_id,
+            len(missing),
+            _sample_ids(missing),
+        )
+    return positions
+
+
 @ApiRoute("show/cues", ApiVersion.V1)
 class CueController(BaseAPIController):
     @requires_show
@@ -275,8 +405,16 @@ class CueController(BaseAPIController):
 
                 cue_groups = [group_schema.dump(g) for g in groups_seen.values()]
 
+                line_positions = get_line_positions(session, revision.id, cues.keys())
+
                 self.set_status(200)
-                self.finish({"cues": cues, "cue_groups": cue_groups})
+                self.finish(
+                    {
+                        "cues": cues,
+                        "cue_groups": cue_groups,
+                        "line_positions": line_positions,
+                    }
+                )
             else:
                 self.set_status(404)
                 self.finish({"message": ERROR_SHOW_NOT_FOUND})
@@ -440,6 +578,11 @@ class CueController(BaseAPIController):
                     self.set_status(404)
                     await self.finish({"message": ERROR_CUE_NOT_FOUND})
                     return
+
+                # The caller must also be allowed to write the cue's *current* type,
+                # otherwise they could convert a cue they cannot edit into one they can.
+                current_cue_type = session.get(CueType, cue.cue_type_id)
+                self.requires_role(current_cue_type, Role.WRITE)
 
                 current_association: CueAssociation = session.get(
                     CueAssociation,
@@ -944,6 +1087,23 @@ class CueGroupController(BaseAPIController):
             ).all()
             existing_by_cue_id = {a.cue_id: a for a in existing_assocs}
 
+            # Members share the group's position on the line. Read it before any
+            # member is removed so that newly added members can reuse it.
+            group_line_pos = next(
+                (a.line_position for a in existing_assocs if a.line_position),
+                None,
+            )
+            if group_line_pos is None:
+                line_assocs = session.scalars(
+                    select(CueAssociation).where(
+                        CueAssociation.revision_id == revision.id,
+                        CueAssociation.line_id == line_id,
+                    )
+                ).all()
+                group_line_pos = (
+                    max((a.line_position or 0 for a in line_assocs), default=0) + 1
+                )
+
             requested_cue_ids = set()
             for cue_entry in cues_data:
                 cue_id_raw = cue_entry.get("id", None)
@@ -976,6 +1136,7 @@ class CueGroupController(BaseAPIController):
                             cue_id=new_cue.id,
                             group_id=group.id,
                             sort_order=sort_order,
+                            line_position=group_line_pos,
                         )
                     )
 

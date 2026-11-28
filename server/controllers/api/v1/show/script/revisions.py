@@ -7,6 +7,8 @@ from tornado.web import MissingArgumentError
 
 from controllers.api.constants import (
     ERROR_DESCRIPTION_MISSING,
+    ERROR_ROOM_OPEN_LOAD,
+    ERROR_ROOM_OPEN_OR_DRAFT,
     ERROR_SCRIPT_NOT_FOUND,
     ERROR_SCRIPT_REVISION_NOT_FOUND,
     ERROR_SHOW_NOT_FOUND,
@@ -20,12 +22,38 @@ from models.script import (
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
+from models.script_draft import ScriptDraft
 from models.show import Show
 from rbac.role import Role
 from schemas.schemas import ScriptRevisionsSchema
 from utils.web.base_controller import BaseAPIController
 from utils.web.route import ApiRoute, ApiVersion
 from utils.web.web_decorators import no_live_session, requires_show
+
+
+def _revision_is_locked(session, application, rev_id: int) -> bool:
+    """Return True if a revision has an active draft or an editor in its room.
+
+    :param session: Active SQLAlchemy session.
+    :param application: Tornado application instance.
+    :param rev_id: Revision ID to check.
+    :returns: True if the revision is locked; False otherwise.
+    """
+    draft = session.scalar(select(ScriptDraft).where(ScriptDraft.revision_id == rev_id))
+    if draft:
+        return True
+    room_manager = getattr(application, "room_manager", None)
+    if room_manager:
+        room = room_manager.get_active_room()
+        # has_editors, not "not room.is_empty": Phase 4 Step A made a mere
+        # viewer join the room too (to watch the live draft) — nobody is
+        # actually editing, so there's nothing a revision switch would
+        # disrupt. Without this, the Revisions page would show every
+        # revision as locked for as long as anyone merely has the script tab
+        # open, not just while someone is actually editing.
+        if room and room.revision_id == rev_id and room.has_editors:
+            return True
+    return False
 
 
 @ApiRoute("show/script/revisions", ApiVersion.V1)
@@ -44,7 +72,13 @@ class ScriptRevisionsController(BaseAPIController):
                 ).first()
 
                 if script:
-                    revisions = [revisions_schema.dump(c) for c in script.revisions]
+                    revisions = []
+                    for c in script.revisions:
+                        rev_dict = revisions_schema.dump(c)
+                        rev_dict["has_draft"] = _revision_is_locked(
+                            session, self.application, c.id
+                        )
+                        revisions.append(rev_dict)
                     self.set_status(200)
                     self.finish(
                         {
@@ -105,6 +139,11 @@ class ScriptRevisionsController(BaseAPIController):
                     await self.finish(
                         {"message": "Parent revision belongs to different script"}
                     )
+                    return
+
+                if _revision_is_locked(session, self.application, parent_rev.id):
+                    self.set_status(409)
+                    await self.finish({"message": ERROR_ROOM_OPEN_OR_DRAFT})
                     return
 
                 max_rev = session.scalar(
@@ -222,6 +261,11 @@ class ScriptRevisionsController(BaseAPIController):
                     await self.finish(
                         {"message": "Cannot delete first script revision"}
                     )
+                    return
+
+                if _revision_is_locked(session, self.application, rev.id):
+                    self.set_status(409)
+                    await self.finish({"message": ERROR_ROOM_OPEN_OR_DRAFT})
                     return
 
                 changed_rev = False
@@ -343,8 +387,32 @@ class ScriptCurrentRevisionController(BaseAPIController):
                     )
                     return
 
+                if _revision_is_locked(
+                    session, self.application, script.current_revision
+                ):
+                    self.set_status(409)
+                    await self.finish({"message": ERROR_ROOM_OPEN_LOAD})
+                    return
+
                 script.current_revision = new_rev.id
                 session.commit()
+
+                # A viewer-only room (no editor — _revision_is_locked above already
+                # confirmed that) left open on the just-replaced revision would keep
+                # every viewer watching a Y.Doc for a revision that's no longer
+                # current. Close it so they drop back to REST and can rejoin fresh
+                # against the new revision. close_room_if_stale_revision re-checks
+                # identity and the revision mismatch under the room lock, rather
+                # than checking here and closing separately — closing unlocked
+                # could otherwise race a concurrent JOIN_SCRIPT_ROOM building the
+                # new revision's own room and close that fresh one instead.
+                room_manager = getattr(self.application, "room_manager", None)
+                if room_manager:
+                    room = room_manager.get_active_room()
+                    if room:
+                        await room_manager.close_room_if_stale_revision(
+                            room, new_rev.id
+                        )
 
                 # If there isn't a compiled script or there is one but it was last updated
                 # before the revision was updated, then create a compiled script

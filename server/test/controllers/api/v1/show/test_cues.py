@@ -1,6 +1,9 @@
-import tornado.escape
-from sqlalchemy import select
+from types import SimpleNamespace
 
+import tornado.escape
+from sqlalchemy import select, text
+
+from controllers.api.v1.show.cues import _sample_ids, get_line_positions
 from models.cue import Cue, CueAssociation, CueGroup, CueType
 from models.script import (
     Script,
@@ -1041,6 +1044,51 @@ class TestCueTypesController(DigiScriptTestCase):
             self.assertIsNone(session.get(CueType, cue_type_id))
             self.assertIsNone(session.get(CueGroup, group_id))
 
+    def test_delete_cue_type_cleans_up_rbac_mapping_row(self):
+        """Deleting a cue type removes the RBAC grant auto-created for its creator
+        (per #1154).
+
+        ``CueTypesController.delete()`` has no explicit RBAC cleanup call -- this
+        verifies the ``DigiDBSession`` delete-hook mechanism handles it instead.
+        """
+        response = self.fetch(
+            "/api/v1/show/cues/types",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"prefix": "SND", "description": "Sound", "colour": "#00ff00"}
+            ),
+            headers={"Authorization": f"Bearer {self.user_token}"},
+        )
+        self.assertEqual(200, response.code)
+        cue_type_id = tornado.escape.json_decode(response.body)["id"]
+
+        with self._app.get_db().sessionmaker() as session:
+            user = session.get(User, self.user_id)
+            cue_type = session.get(CueType, cue_type_id)
+            self.assertTrue(
+                self._app.rbac.has_role(
+                    user, cue_type, Role.READ | Role.WRITE | Role.EXECUTE
+                )
+            )
+
+        response = self.fetch(
+            f"/api/v1/show/cues/types?id={cue_type_id}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {self.admin_token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            row_count = session.execute(
+                text("SELECT COUNT(*) FROM rbac_user_cuetypes WHERE cuetypes_id = :v"),
+                {"v": cue_type_id},
+            ).scalar()
+            self.assertEqual(
+                0,
+                row_count,
+                "rbac_user_cuetypes row should be removed when the cue type is deleted",
+            )
+
 
 class TestCueGroups(DigiScriptTestCase):
     """Tests for POST/PATCH/DELETE /api/v1/show/cues/groups."""
@@ -1635,54 +1683,65 @@ class TestCueGroups(DigiScriptTestCase):
                 session.commit()
 
 
+def seed_show_with_dialogue_line(session):
+    """Create a show with a current script revision holding one dialogue line.
+
+    :param session: An open database session (not committed by this helper).
+    :returns: A namespace with ``show_id``, ``revision_id``, ``line_id``, ``act_id``
+        and ``scene_id``.
+    """
+    show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
+    session.add(show)
+    session.flush()
+
+    script = Script(show_id=show.id)
+    session.add(script)
+    session.flush()
+
+    revision = ScriptRevision(script_id=script.id, revision=1, description="Initial")
+    session.add(revision)
+    session.flush()
+    script.current_revision = revision.id
+
+    act = Act(show_id=show.id, name="Act 1")
+    session.add(act)
+    session.flush()
+    scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
+    session.add(scene)
+    session.flush()
+
+    line = ScriptLine(
+        act_id=act.id, scene_id=scene.id, page=1, line_type=ScriptLineType.DIALOGUE
+    )
+    session.add(line)
+    session.flush()
+    session.add(ScriptLineRevisionAssociation(revision_id=revision.id, line_id=line.id))
+
+    return SimpleNamespace(
+        show_id=show.id,
+        revision_id=revision.id,
+        line_id=line.id,
+        act_id=act.id,
+        scene_id=scene.id,
+    )
+
+
 class TestCueLinePositionOrdering(DigiScriptTestCase):
     """Tests that individual cues and cue groups are ordered by line_position."""
 
     def setUp(self):
         super().setUp()
         with self._app.get_db().sessionmaker() as session:
-            show = Show(name="Test Show", script_mode=ShowScriptType.FULL)
-            session.add(show)
-            session.flush()
-            self.show_id = show.id
-
-            script = Script(show_id=show.id)
-            session.add(script)
-            session.flush()
-
-            revision = ScriptRevision(
-                script_id=script.id, revision=1, description="Initial"
-            )
-            session.add(revision)
-            session.flush()
-            self.revision_id = revision.id
-            script.current_revision = revision.id
-
-            act = Act(show_id=show.id, name="Act 1")
-            session.add(act)
-            session.flush()
-
-            scene = Scene(show_id=show.id, act_id=act.id, name="Scene 1")
-            session.add(scene)
-            session.flush()
-
-            line = ScriptLine(
-                act_id=act.id,
-                scene_id=scene.id,
-                page=1,
-                line_type=ScriptLineType.DIALOGUE,
-            )
-            session.add(line)
-            session.flush()
-            self.line_id = line.id
-
-            assoc = ScriptLineRevisionAssociation(
-                revision_id=revision.id, line_id=line.id
-            )
-            session.add(assoc)
+            seeded = seed_show_with_dialogue_line(session)
+            self.show_id = seeded.show_id
+            self.revision_id = seeded.revision_id
+            self.line_id = seeded.line_id
 
             cue_type = CueType(
-                show_id=show.id, prefix="LX", description="Lighting", colour="#ff0000"
+                show_id=self.show_id,
+                prefix="LX",
+                description="Lighting",
+                colour="#ff0000",
             )
             session.add(cue_type)
             session.flush()
@@ -1821,3 +1880,491 @@ class TestCueLinePositionOrdering(DigiScriptTestCase):
         # Group must still come before the individual cue
         group_after = next(c for c in cues_after if c["group_id"] is not None)
         self.assertLess(group_after["line_position"], individual_after["line_position"])
+
+    def test_group_patch_new_member_first_keeps_line_position(self):
+        """A member added at the front of a group keeps the group's place on the line.
+
+        Regression test: new members were created without a ``line_position`` so
+        a group whose first member was new sorted to the end of the line.
+        """
+        grp_resp = self._post_group(["G1", "G2"])
+        self.assertEqual(200, grp_resp.code)
+        group_id = tornado.escape.json_decode(grp_resp.body)["id"]
+        self.assertEqual(200, self._post_individual_cue("I1").code)
+
+        cues_before = self._get_cues_for_line()
+        group_before = sorted(
+            (c for c in cues_before if c["group_id"] == group_id),
+            key=lambda c: c["sort_order"],
+        )
+        group_pos = group_before[0]["line_position"]
+        individual = next(c for c in cues_before if c["group_id"] is None)
+        self.assertLess(group_pos, individual["line_position"])
+
+        # New member (no id) is first, existing members follow
+        patch_cues = [{"ident": "G0", "sortOrder": 0}] + [
+            {"id": c["id"], "ident": c["ident"], "sortOrder": i + 1}
+            for i, c in enumerate(group_before)
+        ]
+        patch_resp = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="PATCH",
+            body=tornado.escape.json_encode(
+                {"groupId": group_id, "lineId": self.line_id, "cues": patch_cues}
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, patch_resp.code)
+
+        cues_after = self._get_cues_for_line()
+        members = [c for c in cues_after if c["group_id"] == group_id]
+        self.assertEqual(3, len(members))
+        self.assertEqual(
+            {group_pos},
+            {c["line_position"] for c in members},
+            "Every group member, including the new one, shares the group position",
+        )
+        individual_after = next(c for c in cues_after if c["group_id"] is None)
+        self.assertLess(group_pos, individual_after["line_position"])
+
+    def test_group_patch_replacing_all_members_keeps_line_position(self):
+        """Replacing every member still leaves the group where it was."""
+        grp_resp = self._post_group(["G1"])
+        group_id = tornado.escape.json_decode(grp_resp.body)["id"]
+        self.assertEqual(200, self._post_individual_cue("I1").code)
+        group_pos = next(
+            c["line_position"]
+            for c in self._get_cues_for_line()
+            if c["group_id"] == group_id
+        )
+
+        patch_resp = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="PATCH",
+            body=tornado.escape.json_encode(
+                {
+                    "groupId": group_id,
+                    "lineId": self.line_id,
+                    "cues": [{"ident": "N1", "sortOrder": 0}],
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, patch_resp.code)
+
+        members = [c for c in self._get_cues_for_line() if c["group_id"] == group_id]
+        self.assertEqual(["N1"], [c["ident"] for c in members])
+        self.assertEqual(group_pos, members[0]["line_position"])
+
+
+class TestCuePatchPermissions(DigiScriptTestCase):
+    """PATCH /api/v1/show/cues must check write access to old and new cue types."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            seeded = seed_show_with_dialogue_line(session)
+            self.show_id = seeded.show_id
+            self.line_id = seeded.line_id
+            show_id = seeded.show_id
+
+            lx = CueType(show_id=show_id, prefix="LX", colour="#ff0000")
+            snd = CueType(show_id=show_id, prefix="SND", colour="#0000ff")
+            session.add_all([lx, snd])
+            session.flush()
+            self.lx_id = lx.id
+            self.snd_id = snd.id
+
+            lx_cue = Cue(cue_type_id=lx.id, ident="1")
+            snd_cue = Cue(cue_type_id=snd.id, ident="1")
+            session.add_all([lx_cue, snd_cue])
+            session.flush()
+            self.lx_cue_id = lx_cue.id
+            self.snd_cue_id = snd_cue.id
+            session.add_all(
+                [
+                    CueAssociation(
+                        revision_id=seeded.revision_id,
+                        line_id=self.line_id,
+                        cue_id=self.lx_cue_id,
+                        line_position=1,
+                    ),
+                    CueAssociation(
+                        revision_id=seeded.revision_id,
+                        line_id=self.line_id,
+                        cue_id=self.snd_cue_id,
+                        line_position=2,
+                    ),
+                ]
+            )
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.admin_token = self._create_and_login_admin()
+        self.user_token = self._create_and_login_user(self.admin_token)
+
+        with self._app.get_db().sessionmaker() as session:
+            user = session.scalars(select(User).where(User.username == "user")).first()
+            self._app.rbac.give_role(
+                user, session.get(CueType, self.lx_id), Role.READ | Role.WRITE
+            )
+            self._app.rbac.give_role(user, session.get(CueType, self.snd_id), Role.READ)
+
+    def _patch(self, token, cue_id, cue_type_id, ident="9"):
+        return self.fetch(
+            "/api/v1/show/cues",
+            method="PATCH",
+            body=tornado.escape.json_encode(
+                {
+                    "cueId": cue_id,
+                    "cueType": cue_type_id,
+                    "lineId": self.line_id,
+                    "ident": ident,
+                }
+            ),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    def _cue_type_of(self, cue_id):
+        with self._app.get_db().sessionmaker() as session:
+            return session.get(Cue, cue_id).cue_type_id
+
+    def test_cannot_change_unwritable_type_into_writable_type(self):
+        """A user who may write LX but not SND cannot turn a SND cue into LX."""
+        response = self._patch(self.user_token, self.snd_cue_id, self.lx_id)
+        self.assertEqual(403, response.code)
+        self.assertEqual(self.snd_id, self._cue_type_of(self.snd_cue_id))
+
+    def test_cannot_change_writable_type_into_unwritable_type(self):
+        """The requested type must still be writable (existing behaviour)."""
+        response = self._patch(self.user_token, self.lx_cue_id, self.snd_id)
+        self.assertEqual(403, response.code)
+        self.assertEqual(self.lx_id, self._cue_type_of(self.lx_cue_id))
+
+    def test_can_edit_cue_within_writable_type(self):
+        """Editing an LX cue as LX is unaffected."""
+        response = self._patch(self.user_token, self.lx_cue_id, self.lx_id, "7")
+        self.assertEqual(200, response.code)
+
+    def test_admin_can_change_between_types(self):
+        """Admins bypass the type checks."""
+        response = self._patch(self.admin_token, self.snd_cue_id, self.lx_id)
+        self.assertEqual(200, response.code)
+        self.assertEqual(self.lx_id, self._cue_type_of(self.snd_cue_id))
+
+
+class TestCueLinePositions(DigiScriptTestCase):
+    """GET /api/v1/show/cues reports where each cued line sits in the script."""
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            seeded = seed_show_with_dialogue_line(session)
+            self.show_id = seeded.show_id
+            self.revision_id = seeded.revision_id
+            self.act_id = seeded.act_id
+            self.scene_id = seeded.scene_id
+
+            # Script order: line_ids[0], [1] on page 1, then [2], [3] on page 2.
+            self.line_ids = [seeded.line_id]
+            self.line_ids += [self._add_line(session, page) for page in (1, 2, 2)]
+            session.flush()
+            self._link(session, self.line_ids)
+
+            cue_type = CueType(show_id=self.show_id, prefix="LX", colour="#ff0000")
+            session.add(cue_type)
+            session.flush()
+            self.cue_type_id = cue_type.id
+
+            admin = User(username="admin", is_admin=True, password="test")
+            session.add(admin)
+            session.flush()
+            self.user_id = admin.id
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def _add_line(self, session, page):
+        """Create a dialogue line in the current revision and flush it."""
+        line = ScriptLine(
+            act_id=self.act_id,
+            scene_id=self.scene_id,
+            page=page,
+            line_type=ScriptLineType.DIALOGUE,
+        )
+        session.add(line)
+        session.flush()
+        session.add(
+            ScriptLineRevisionAssociation(revision_id=self.revision_id, line_id=line.id)
+        )
+        session.flush()
+        return line.id
+
+    def _cue_all_lines(self):
+        for line_id in self.line_ids:
+            self._add_cue(line_id)
+
+    def _page_and_index(self, positions):
+        """(page, index) for each line in ``self.line_ids`` order."""
+        return [
+            (positions[str(line_id)]["page"], positions[str(line_id)]["index"])
+            for line_id in self.line_ids
+        ]
+
+    def _link(self, session, ordered_line_ids, revision_id=None):
+        """Set previous/next pointers so the lines form one chain in this order."""
+        revision_id = revision_id or self.revision_id
+        assocs = {
+            a.line_id: a
+            for a in session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == revision_id
+                )
+            )
+        }
+        last = len(ordered_line_ids) - 1
+        for i, line_id in enumerate(ordered_line_ids):
+            assocs[line_id].previous_line_id = ordered_line_ids[i - 1] if i else None
+            assocs[line_id].next_line_id = ordered_line_ids[i + 1] if i < last else None
+
+    def _assoc(self, session, line_id):
+        return session.get(
+            ScriptLineRevisionAssociation,
+            {"revision_id": self.revision_id, "line_id": line_id},
+        )
+
+    def _add_cue(self, line_id, ident="1"):
+        response = self.fetch(
+            "/api/v1/show/cues",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {"cueType": self.cue_type_id, "ident": ident, "lineId": line_id}
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+    def _get_cues_response(self):
+        response = self.fetch("/api/v1/show/cues")
+        self.assertEqual(200, response.code)
+        return tornado.escape.json_decode(response.body)
+
+    def _get_line_positions(self):
+        return self._get_cues_response()["line_positions"]
+
+    def test_no_cues_gives_empty_positions(self):
+        self.assertEqual({}, self._get_line_positions())
+
+    def test_only_cued_lines_are_returned(self):
+        self._add_cue(self.line_ids[0])
+        self._add_cue(self.line_ids[2])
+
+        positions = self._get_line_positions()
+        self.assertEqual(
+            {str(self.line_ids[0]), str(self.line_ids[2])}, set(positions.keys())
+        )
+
+    def test_healthy_chain_logs_nothing(self):
+        self._cue_all_lines()
+
+        with self.assertNoLogs("DigiScript", level="WARNING"):
+            self._get_line_positions()
+
+    def test_index_is_zero_based_within_page_across_pages(self):
+        self._cue_all_lines()
+
+        positions = self._get_line_positions()
+        self.assertEqual(
+            [(1, 0), (1, 1), (2, 0), (2, 1)], self._page_and_index(positions)
+        )
+        self.assertEqual(self.act_id, positions[str(self.line_ids[0])]["act_id"])
+        self.assertEqual(self.scene_id, positions[str(self.line_ids[0])]["scene_id"])
+
+    def test_interleaved_pages_are_counted_per_page(self):
+        """Pages 1, 2, 1, 2 in script order: indexes count per page, not per run."""
+        a, b, c, d = self.line_ids  # pages 1, 1, 2, 2
+        with self._app.get_db().sessionmaker() as session:
+            self._link(session, [a, c, b, d])
+            session.commit()
+        self._cue_all_lines()
+
+        positions = self._get_line_positions()
+        got = {
+            line_id: (positions[str(line_id)]["page"], positions[str(line_id)]["index"])
+            for line_id in self.line_ids
+        }
+        self.assertEqual({a: (1, 0), c: (2, 0), b: (1, 1), d: (2, 1)}, got)
+
+    def test_inserted_line_shifts_following_indexes(self):
+        self._add_cue(self.line_ids[1])
+        self.assertEqual(1, self._get_line_positions()[str(self.line_ids[1])]["index"])
+
+        with self._app.get_db().sessionmaker() as session:
+            inserted = self._add_line(session, 1)
+            self._link(session, [self.line_ids[0], inserted, *self.line_ids[1:]])
+            session.commit()
+
+        self.assertEqual(2, self._get_line_positions()[str(self.line_ids[1])]["index"])
+
+    def test_positions_follow_links_not_line_ids(self):
+        """Reordering the chain changes the result even though ids are unchanged."""
+        self._add_cue(self.line_ids[0])
+        self._add_cue(self.line_ids[1])
+        with self._app.get_db().sessionmaker() as session:
+            self._link(
+                session, [self.line_ids[1], self.line_ids[0], *self.line_ids[2:]]
+            )
+            session.commit()
+
+        positions = self._get_line_positions()
+        self.assertEqual(0, positions[str(self.line_ids[1])]["index"])
+        self.assertEqual(1, positions[str(self.line_ids[0])]["index"])
+
+    def test_only_the_current_revision_is_used(self):
+        """Another revision holding the same lines in reverse must not interfere."""
+        with self._app.get_db().sessionmaker() as session:
+            current = session.get(ScriptRevision, self.revision_id)
+            other = ScriptRevision(
+                script_id=current.script_id, revision=2, description="Other"
+            )
+            session.add(other)
+            session.flush()
+            for line_id in self.line_ids:
+                session.add(
+                    ScriptLineRevisionAssociation(revision_id=other.id, line_id=line_id)
+                )
+            session.flush()
+            self._link(session, list(reversed(self.line_ids)), revision_id=other.id)
+            session.commit()
+
+        self._cue_all_lines()
+
+        positions = self._get_line_positions()
+        self.assertEqual(
+            [(1, 0), (1, 1), (2, 0), (2, 1)], self._page_and_index(positions)
+        )
+
+    def test_several_cues_and_a_group_on_one_line_give_one_entry(self):
+        line_id = self.line_ids[0]
+        self._add_cue(line_id, "1")
+        self._add_cue(line_id, "2")
+        group_response = self.fetch(
+            "/api/v1/show/cues/groups",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {
+                    "cueTypeId": self.cue_type_id,
+                    "lineId": line_id,
+                    "cues": [{"ident": "10", "sortOrder": 0}],
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, group_response.code)
+
+        body = self._get_cues_response()
+        self.assertEqual([str(line_id)], list(body["line_positions"].keys()))
+        self.assertEqual(3, len(body["cues"][str(line_id)]))
+        self.assertEqual(1, len(body["cue_groups"]))
+
+    def test_line_without_a_page_gets_its_own_bucket(self):
+        """``page`` is nullable; such a line reports ``page: null`` without erroring."""
+        with self._app.get_db().sessionmaker() as session:
+            for line_id in self.line_ids[2:]:
+                session.get(ScriptLine, line_id).page = None
+            session.commit()
+        self._cue_all_lines()
+
+        positions = self._get_line_positions()
+        self.assertEqual(
+            [(1, 0), (1, 1), (None, 0), (None, 1)], self._page_and_index(positions)
+        )
+
+    def test_multiple_heads_give_no_positions(self):
+        """A broken chain with two heads reports nothing rather than wrong indexes."""
+        self._cue_all_lines()
+        with self._app.get_db().sessionmaker() as session:
+            self._assoc(session, self.line_ids[2]).previous_line_id = None
+            session.commit()
+
+        with self.assertLogs("DigiScript", level="ERROR") as logs:
+            body = self._get_cues_response()
+        self.assertEqual({}, body["line_positions"])
+        self.assertEqual(len(self.line_ids), len(body["cues"]))
+        self.assertIn("2 heads", "".join(logs.output))
+
+    def test_no_head_gives_no_positions(self):
+        """A chain closed into a loop has no head; nothing can be positioned."""
+        self._cue_all_lines()
+        with self._app.get_db().sessionmaker() as session:
+            self._assoc(session, self.line_ids[0]).previous_line_id = self.line_ids[3]
+            self._assoc(session, self.line_ids[3]).next_line_id = self.line_ids[0]
+            session.commit()
+
+        with self.assertLogs("DigiScript", level="ERROR") as logs:
+            positions = self._get_line_positions()
+        self.assertEqual({}, positions)
+        self.assertIn("0 heads", "".join(logs.output))
+
+    def test_revision_without_associations_gives_no_positions(self):
+        with self._app.get_db().sessionmaker() as session:
+            with self.assertLogs("DigiScript", level="ERROR") as logs:
+                positions = get_line_positions(session, 999999, self.line_ids)
+        self.assertEqual({}, positions)
+        self.assertIn("no line associations", "".join(logs.output))
+
+    def test_cycle_terminates(self):
+        """The last line pointing back into the chain must not hang the request."""
+        self._cue_all_lines()
+        with self._app.get_db().sessionmaker() as session:
+            self._assoc(session, self.line_ids[3]).next_line_id = self.line_ids[1]
+            session.commit()
+
+        # A cycle back into the chain just ends the walk. Every row is still
+        # reached, so there is no inconsistency to warn about.
+        with self.assertNoLogs("DigiScript", level="WARNING"):
+            positions = self._get_line_positions()
+        self.assertEqual(
+            [(1, 0), (1, 1), (2, 0), (2, 1)], self._page_and_index(positions)
+        )
+
+    def test_unreachable_line_is_omitted_and_warned_about(self):
+        """A line hanging off the chain without being linked into it is skipped."""
+        with self._app.get_db().sessionmaker() as session:
+            orphan = self._add_line(session, 2)
+            self._assoc(session, orphan).previous_line_id = self.line_ids[3]
+            session.commit()
+        self._add_cue(self.line_ids[0])
+        self._add_cue(orphan)
+
+        with self.assertLogs("DigiScript", level="WARNING") as logs:
+            positions = self._get_line_positions()
+        self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
+        self.assertEqual(0, positions[str(self.line_ids[0])]["index"])
+        self.assertIn("4/5 lines reachable", "".join(logs.output))
+        self.assertIn(
+            f"1 requested line(s) unreachable: [{orphan}]", "".join(logs.output)
+        )
+
+    def test_line_not_in_revision_is_omitted_and_warned_about(self):
+        with self._app.get_db().sessionmaker() as session:
+            with self.assertLogs("DigiScript", level="WARNING") as logs:
+                positions = get_line_positions(
+                    session, self.revision_id, [self.line_ids[0], 999999]
+                )
+            self.assertEqual({str(self.line_ids[0])}, set(positions.keys()))
+            self.assertIn(
+                "1 requested line(s) have no association in the revision: [999999]",
+                "".join(logs.output),
+            )
+            self.assertEqual({}, get_line_positions(session, self.revision_id, []))
+
+    def test_logged_id_lists_are_sorted_and_capped(self):
+        self.assertEqual("[1, 2, 3]", _sample_ids({3, 1, 2}))
+        self.assertEqual(str(list(range(20))), _sample_ids(range(19, -1, -1)))
+        self.assertEqual(
+            f"{list(range(20))} (+10 more)", _sample_ids(range(29, -1, -1))
+        )

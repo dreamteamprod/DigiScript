@@ -1,0 +1,520 @@
+/**
+ * System config (/config): create + load show, user management, settings.
+ * This spec creates and loads a show — all subsequent specs depend on that show being loaded.
+ */
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import {
+  UI_BASE,
+  ADMIN_USERNAME,
+  ADMIN_PASSWORD,
+  apiLogin,
+  loginAsAdmin,
+  waitForAppReady,
+  waitForModal,
+  waitForModalClosed,
+  confirmModal,
+  confirmDialog,
+} from '../helpers.js';
+import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
+
+test.describe.configure({ mode: 'serial' });
+
+registerRetryHooks();
+
+/** Created/last-login/last-seen times in the users table are wall-clock values of this run. */
+function userTableDates(page: Page) {
+  return [
+    { locator: page.locator('#users-table tbody tr td:nth-child(2)'), text: '2025-01-06 09:30:12' },
+    { locator: page.locator('#users-table tbody tr td:nth-child(3)'), text: '2025-01-06 09:41:03' },
+    { locator: page.locator('#users-table tbody tr td:nth-child(4)'), text: '2025-01-06 09:52:47' },
+  ];
+}
+
+/** The General settings card shows this run's temp-directory paths (database, scripts). */
+function settingsPaths(page: Page) {
+  const textInput = (n: number) => page.locator('.tab-pane.active input[type="text"]').nth(n);
+  return [
+    { locator: textInput(0), text: 'sqlite:///conf/digiscript.sqlite' },
+    { locator: textInput(1), text: 'conf/compiled_scripts' },
+    { locator: textInput(2), text: 'conf/draft_scripts' },
+  ];
+}
+
+let ctx: BrowserContext;
+let page: Page;
+
+test.beforeAll(async ({ browser }) => {
+  ctx = await newContext(browser);
+  page = await ctx.newPage();
+  await loginAsAdmin(page);
+});
+
+test.afterAll(async () => {
+  await ctx.close();
+});
+
+// ── Shows tab ──────────────────────────────────────────────────────────────
+
+test('navigates to System Config', async () => {
+  await page.click('a:has-text("System Config")');
+  await page.waitForURL(`${UI_BASE}/config`);
+  await expect(page.locator('h1, h2, h3').first()).toBeVisible();
+});
+
+test('shows the Shows tab by default', async () => {
+  await expect(page.locator('button:has-text("Setup New Show")')).toBeVisible();
+});
+
+test('opens the Setup New Show modal', async () => {
+  await page.click('button:has-text("Setup New Show")');
+  await waitForModal(page, 'Setup New Show');
+});
+
+test('modal shows Save and Save and Load buttons', async () => {
+  await expect(
+    page.locator('.modal.show').getByRole('button', { name: 'Save', exact: true })
+  ).toBeVisible();
+  await expect(
+    page.locator('.modal.show').getByRole('button', { name: 'Save and Load' })
+  ).toBeVisible();
+});
+
+test('creates and loads a show via Save and Load', async () => {
+  await page.fill('#show-name-input', 'E2E Test Show');
+  await page.fill('#show-start-input', '2025-01-01');
+  await page.fill('#show-end-input', '2025-03-31');
+  // Wait for script modes to load then explicitly select to trigger v-model update
+  await page
+    .waitForSelector('#show-script-mode-input option:not([value=""])', { timeout: 5_000 })
+    .catch(() => {});
+  await page.selectOption('#show-script-mode-input', { index: 0 });
+  await docShot(page, 'getting_started/create_show');
+  // Same form; the doc's script-mode section shows the modal as it stands here.
+  await docShot(page, 'config_show/config_system_new_show_advanced_options');
+
+  // The frontend's SHOW_CHANGED WS handler calls window.location.reload() after the show is
+  // loaded. On fast runners this fires before waitForModalClosed returns; on slow CI runners it
+  // can arrive seconds after the API response. Listen before clicking to catch it either way.
+  const afterLoad = page.waitForEvent('load', { timeout: 30_000 });
+  await page.click('.modal.show button:has-text("Save and Load")');
+  await afterLoad;
+
+  await waitForAppReady(page);
+
+  // Show Config nav link appears once a show is loaded
+  await expect(page.locator('a:has-text("Show Config")')).toBeVisible({ timeout: 10_000 });
+});
+
+// ── Show deletion ─────────────────────────────────────────────────────────
+
+test('creates a second show to use as a deletion target', async () => {
+  // Shows tab is still active after the page reload caused by loading the first show.
+  await expect(page.locator('button:has-text("Setup New Show")')).toBeVisible({ timeout: 10_000 });
+  await page.click('button:has-text("Setup New Show")');
+  await waitForModal(page, 'Setup New Show');
+
+  await page.fill('#show-name-input', 'E2E Show to Delete');
+  await page.fill('#show-start-input', '2025-02-01');
+  await page.fill('#show-end-input', '2025-04-30');
+  await page
+    .waitForSelector('#show-script-mode-input option:not([value=""])', { timeout: 5_000 })
+    .catch(() => {});
+  await page.selectOption('#show-script-mode-input', { index: 0 });
+
+  // Save only — do not load this show; the primary show must remain loaded for later specs.
+  await page.locator('.modal.show').getByRole('button', { name: 'Save', exact: true }).click();
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("E2E Show to Delete")')).toBeVisible();
+  // A saved-but-not-loaded show: its row offers the Load button.
+  await docShot(page, 'getting_started/load_show', {
+    fixText: [
+      {
+        locator: page.locator('.tab-pane.active table tbody tr td:nth-child(5)'),
+        text: '2025-01-06T09:30:12.104744',
+      },
+    ],
+  });
+});
+
+test('delete button is disabled for the currently loaded show', async () => {
+  const loadedRow = page.locator('tr', {
+    has: page.locator('td:has-text("E2E Test Show")'),
+  });
+  await expect(loadedRow.locator('button:has-text("Delete")')).toBeDisabled();
+});
+
+test('can delete a show', async () => {
+  const targetRow = page.locator('tr', {
+    has: page.locator('td:has-text("E2E Show to Delete")'),
+  });
+  await targetRow.locator('button:has-text("Delete")').click();
+  await confirmDialog(page);
+  await expect(page.locator('td:has-text("E2E Show to Delete")')).not.toBeVisible({
+    timeout: 5_000,
+  });
+  // The primary show must still be present
+  await expect(page.locator('td:has-text("E2E Test Show")')).toBeVisible();
+});
+
+// ── Users tab ──────────────────────────────────────────────────────────────
+
+test('switches to the Users tab', async () => {
+  await page.click(
+    'button[role="tab"]:has-text("Users"), a[role="tab"]:has-text("Users"), .nav-link:has-text("Users")'
+  );
+  await expect(page.locator('button:has-text("New User")')).toBeVisible({ timeout: 10_000 });
+});
+
+test('opens New User modal', async () => {
+  await page.click('button:has-text("New User")');
+  await waitForModal(page, 'Add New User');
+  await expect(page.locator('.modal.show #username-input')).toBeVisible();
+});
+
+test('creates a non-admin user', async () => {
+  await page.fill('.modal.show #username-input', 'testuser');
+  await page.fill('.modal.show #password-input', 'testpassword');
+  await page.fill('.modal.show #confirm-password-input', 'testpassword');
+  await page.click('.modal.show button:has-text("Save")');
+  await waitForModalClosed(page);
+  await expect(page.locator('td:has-text("testuser")')).toBeVisible();
+  await docShot(page, 'config_user/users_overview_new', {
+    fixText: userTableDates(page),
+  });
+});
+
+test('can configure RBAC permissions for testuser', async () => {
+  const userRow = page.locator('tr', { has: page.locator('td:has-text("testuser")') });
+  await userRow.locator('button:has-text("RBAC")').click();
+  await waitForModal(page, 'User RBAC Config');
+
+  const grantBtn = page.locator('.modal.show button:has-text("Grant Role")').first();
+  await expect(grantBtn).toBeVisible({ timeout: 5_000 });
+  await grantBtn.click();
+  await expect(page.locator('.modal.show button:has-text("Revoke Role")').first()).toBeVisible({
+    timeout: 5_000,
+  });
+
+  await page.locator('.modal.show button:has-text("Revoke Role")').first().click();
+  await expect(page.locator('.modal.show button:has-text("Grant Role")').first()).toBeVisible({
+    timeout: 5_000,
+  });
+
+  // Wait for the "Revoked role from user" toast to clear before clicking the modal close button,
+  // otherwise it sits over .btn-close and intercepts pointer events. Wait on .v-toast__item (removed
+  // on dismiss), not .v-toast: the latter are two permanent containers, so it would be a strict-mode
+  // violation and could never detach. Don't move the mouse onto the toast while waiting - hovering
+  // pauses its auto-dismiss timer.
+  await expect(page.locator('.v-toast__item')).toHaveCount(0, { timeout: 10_000 });
+  await page.locator('.modal.show .modal-header .btn-close').click();
+  await waitForModalClosed(page);
+});
+
+test('can edit a user to promote to admin', async () => {
+  const userRow = page.locator('tr', { has: page.locator('td:has-text("testuser")') });
+
+  // Verify the badge shows "User" before edit
+  await expect(userRow.locator('.badge:has-text("User")')).toBeVisible();
+
+  await userRow.locator('button:has-text("Edit")').click();
+  await waitForModal(page, 'Edit User');
+
+  // Toggle the admin switch on
+  await page.locator('.modal.show .form-check-input').click();
+  await expect(page.locator('.modal.show')).toContainText('Admin');
+
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  // Badge should now show "Admin"
+  await expect(userRow.locator('.badge:has-text("Admin")')).toBeVisible({ timeout: 5_000 });
+});
+
+test('can edit a user to demote from admin', async () => {
+  const userRow = page.locator('tr', { has: page.locator('td:has-text("testuser")') });
+
+  await userRow.locator('button:has-text("Edit")').click();
+  await waitForModal(page, 'Edit User');
+
+  // Toggle the admin switch off
+  await page.locator('.modal.show .form-check-input').click();
+  await expect(page.locator('.modal.show')).toContainText('Standard User');
+
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  // Badge should show "User" again
+  await expect(userRow.locator('.badge:has-text("User")')).toBeVisible({ timeout: 5_000 });
+});
+
+test('edit button is disabled for the current user', async () => {
+  const adminRow = page.locator('tr', { has: page.locator('td:has-text("admin")') });
+  await expect(adminRow.locator('button:has-text("Edit")')).toBeDisabled();
+});
+
+test('logging in as a different user on this tab, without a reload, gives it a new client id', async ({
+  request,
+}) => {
+  // An in-app sign-out then sign-in as another user must re-authenticate the open
+  // WebSocket. The server then moves this tab off the admin's client id to a fresh
+  // one owned by the new user (REASSIGN_UUID), so the new user never inherits the
+  // admin's client and can, for example, start a show from this tab.
+  const readUUID = () =>
+    page.evaluate(
+      () => JSON.parse(sessionStorage.getItem('websocket') ?? '{}').internalUUID ?? null
+    );
+  const before = await readUUID();
+  expect(before).toBeTruthy();
+
+  await page.locator('nav').getByText(ADMIN_USERNAME).click();
+  await page.click('button:has-text("Sign Out")');
+  await expect(page.locator('a:has-text("Login")')).toBeVisible({ timeout: 5_000 });
+  // No page load: follow the in-app Login link.
+  await page.click('a:has-text("Login")');
+  await page.fill('#username-input', 'testuser');
+  await page.fill('#password-input', 'testpassword');
+  await page.click('button:has-text("Login")');
+  await expect(page.locator('nav').getByText('testuser')).toBeVisible({ timeout: 10_000 });
+
+  await expect.poll(readUUID, { timeout: 10_000 }).not.toBe(before);
+  const after = await readUUID();
+
+  // Server side: the tab's new client is owned by testuser.
+  const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
+  const auth = { headers: { Authorization: `Bearer ${adminToken}` } };
+  const { users } = (await (await request.get(`${UI_BASE}/api/v1/auth/users`, auth)).json()) as {
+    users: { id: number; username: string }[];
+  };
+  const testUserId = users.find((u) => u.username === 'testuser')?.id;
+  const ownerOf = async (clientId: string) => {
+    const { sessions } = (await (
+      await request.get(`${UI_BASE}/api/v1/ws/sessions`, auth)
+    ).json()) as {
+      sessions: { internal_id: string; user_id: number | null }[];
+    };
+    return sessions.find((s) => s.internal_id === clientId)?.user_id ?? null;
+  };
+  await expect.poll(() => ownerOf(after)).toBe(testUserId);
+
+  // Restore the admin session on the Users tab for the following tests.
+  await page.locator('nav').getByText('testuser').click();
+  await page.click('button:has-text("Sign Out")');
+  await expect(page.locator('a:has-text("Login")')).toBeVisible({ timeout: 5_000 });
+  await loginAsAdmin(page);
+  await page.goto(`${UI_BASE}/config`);
+  await waitForAppReady(page);
+  await page.click(
+    'button[role="tab"]:has-text("Users"), a[role="tab"]:has-text("Users"), .nav-link:has-text("Users")'
+  );
+  await expect(page.locator('button:has-text("New User")')).toBeVisible({ timeout: 10_000 });
+});
+
+test('resets the non-admin user password', async () => {
+  // Ensure testuser row is stable before interacting
+  await expect(page.locator('td:has-text("testuser")')).toBeVisible({ timeout: 5_000 });
+  const userRow = page.locator('tr', { has: page.locator('td:has-text("testuser")') });
+  await userRow.locator('button:has-text("Reset Password")').click();
+  // Wait for the modal to appear — match visible modal content rather than title class
+  await page.waitForSelector('.modal.show', { timeout: 10_000 });
+  await expect(page.locator('.modal.show')).toContainText('Reset User Password');
+  // Click the Reset Password button inside the modal body
+  await page.locator('.modal.show button:has-text("Reset Password")').click();
+  // Temporary password shown — Done button appears
+  await expect(page.locator('.modal.show button:has-text("Done")')).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_user/reset_password_modal', {
+    fixText: [
+      { locator: page.locator('.modal.show input'), text: 'amber-river-quiet-stone' },
+      ...userTableDates(page),
+    ],
+  });
+  await page.locator('.modal.show button:has-text("Done")').click();
+  await waitForModalClosed(page);
+});
+
+test('deletes the non-admin user', async () => {
+  const userRow = page.locator('tr', { has: page.locator('td:has-text("testuser")') });
+  await userRow.locator('button:has-text("Delete")').click();
+  await confirmDialog(page);
+  await expect(page.locator('td:has-text("testuser")')).not.toBeVisible({ timeout: 5_000 });
+});
+
+// ── Settings tab ──────────────────────────────────────────────────────────
+
+test('switches to the Settings tab', async () => {
+  await page.click('.nav-link:has-text("Settings")');
+  await expect(page.locator('button:has-text("Submit")')).toBeVisible({ timeout: 10_000 });
+});
+
+test('Submit button is disabled until a setting is changed', async () => {
+  await expect(page.locator('button:has-text("Submit")')).toBeDisabled();
+});
+
+test('changing a setting enables the Submit and Reset buttons', async () => {
+  // Toggle the Debug Mode setting (a boolean switch)
+  const debugSwitch = page
+    .locator('label:has-text("Debug Mode")')
+    .locator('..')
+    .locator('input[type="checkbox"], .form-check-input')
+    .first();
+  if ((await debugSwitch.count()) > 0) {
+    await debugSwitch.click();
+    await expect(page.locator('button:has-text("Submit")')).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Reset', exact: true })).toBeEnabled();
+    // Reset it back
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  }
+});
+
+test('Security category is visible in the settings page', async () => {
+  await expect(page.locator('.card-header:has-text("Security")')).toBeVisible({ timeout: 5_000 });
+});
+
+test('Security category can be expanded to reveal JWT Token Lifetime', async () => {
+  // Security card is collapsed by default — click the header to expand
+  await page.locator('.card-header:has-text("Security")').click();
+  await expect(page.locator('#jwt_token_lifetime_hours-input')).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_system/settings_tab', { fixText: settingsPaths(page) });
+});
+
+test('JWT Token Lifetime dropdown shows human-readable labels', async () => {
+  const select = page.locator('#jwt_token_lifetime_hours-input');
+  // The option text should be human-readable, not a raw number
+  await expect(select.locator('option').filter({ hasText: '1 day' })).toBeAttached({
+    timeout: 5_000,
+  });
+  await expect(select.locator('option').filter({ hasText: '1 week' })).toBeAttached();
+  await expect(select.locator('option').filter({ hasText: '1 month' })).toBeAttached();
+});
+
+test('Telemetry category is visible in the settings page', async () => {
+  await expect(page.locator('.card-header:has-text("Telemetry")')).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
+test('Telemetry category can be expanded, reflecting the choice saved during first-run', async () => {
+  // Collapsed by default — click the header to expand
+  await page.locator('.card-header:has-text("Telemetry")').click();
+  const telemetryCheckbox = page.locator('#telemetry_enabled-input');
+  await expect(telemetryCheckbox).toBeVisible({ timeout: 5_000 });
+  // 01-first-run.spec.ts deliberately unchecked this before submitting — off here proves
+  // the first-run checkbox's value actually reached the saved setting, not just local form
+  // state. Checking for the default (true) wouldn't prove anything, since that's also what
+  // the setting would read even if the save had silently done nothing at all.
+  await expect(telemetryCheckbox).not.toBeChecked();
+  await docShot(page, 'config_system/settings_telemetry_category', {
+    fixText: settingsPaths(page),
+  });
+});
+
+test('can change JWT Token Lifetime and submit successfully', async () => {
+  const select = page.locator('#jwt_token_lifetime_hours-input');
+  // Change to 6 hours
+  await select.selectOption({ label: '6 hours' });
+  await expect(page.locator('button:has-text("Submit")')).toBeEnabled({ timeout: 3_000 });
+  await page.locator('button:has-text("Submit")').click();
+  // Use .v-toast__item to avoid strict-mode violation (.v-toast has two container elements)
+  await expect(page.locator('.v-toast__item:has-text("Saved settings")')).toBeVisible({
+    timeout: 5_000,
+  });
+  // Wait for Submit to re-disable — the WS SETTINGS_CHANGED broadcast resets editSettings to
+  // match the server, making hasChanges false. Selecting before this settles causes a race where
+  // the WS update overwrites our selection and Submit stays disabled.
+  await expect(page.locator('button:has-text("Submit")')).toBeDisabled({ timeout: 10_000 });
+  // Restore default (1 day = 24 hours). A late WS SETTINGS_CHANGED broadcast can overwrite the
+  // selection after Submit has enabled (the race described above), so re-select and submit as
+  // one retried step rather than asserting between the two.
+  await expect(async () => {
+    await select.selectOption({ label: '1 day' });
+    // Wait for this attempt's own PATCH to be answered rather than for a toast: the first
+    // Submit's "Saved settings" toast can still be on screen, and a retried attempt can add more.
+    const saved = page.waitForResponse(
+      (r) => r.request().method() === 'PATCH' && new URL(r.url()).pathname === '/api/v1/settings',
+      { timeout: 5_000 }
+    );
+    saved.catch(() => {}); // a failed attempt is retried; don't leave its rejection unhandled
+    await page.locator('button:has-text("Submit")').click({ timeout: 5_000 });
+    const response = await saved;
+    // Not part of the predicate, so a 4xx/5xx shows its status and body rather than a timeout.
+    expect(
+      response.ok(),
+      `PATCH /api/v1/settings: ${response.status()} ${await response.text()}`
+    ).toBe(true);
+  }).toPass({ timeout: 30_000 });
+  // Let the toasts clear so nothing leaks into the next test.
+  await expect(page.locator('.v-toast__item')).toHaveCount(0, { timeout: 15_000 });
+
+  // The restore must really have been saved: later specs assume the default lifetime.
+  await page.reload();
+  await waitForAppReady(page);
+  await page.click('.nav-link:has-text("Settings")');
+  await page.locator('.card-header:has-text("Security")').click();
+  await expect(page.locator('#jwt_token_lifetime_hours-input option:checked')).toHaveText('1 day');
+});
+
+// ── System tab ────────────────────────────────────────────────────────────
+
+test('switches to the System tab', async () => {
+  await page
+    .locator('.nav-link')
+    .filter({ hasText: /^System$/ })
+    .click();
+  // Use strong selector — the modal "Connected Clients" h5 is also in the DOM (BVN teleport)
+  await expect(page.locator('strong:has-text("Connected Clients")')).toBeVisible({
+    timeout: 10_000,
+  });
+});
+
+test('System tab shows server info rows', async () => {
+  await expect(page.locator('strong:has-text("Hostname")')).toBeVisible();
+  await expect(page.locator('strong:has-text("IP Address")')).toBeVisible();
+  await expect(page.locator('strong:has-text("Port")')).toBeVisible();
+  const infoRow = (label: string) =>
+    page
+      .locator('tr', { has: page.locator(`strong:has-text("${label}")`) })
+      .locator('td')
+      .nth(1);
+  await docShot(page, 'config_system/system_overview', {
+    fixText: [
+      { locator: infoRow('Hostname'), text: 'digiscript-server' },
+      { locator: infoRow('IP Address'), text: '192.168.1.20' },
+      { locator: infoRow('Port'), text: '8080' },
+      // The version and its status badge depend on the build and on reaching GitHub.
+      { locator: infoRow('Version'), text: '2.0.0 (Up to date)' },
+    ],
+  });
+});
+
+test('can open the View Clients modal', async () => {
+  await page.click('button:has-text("View Clients")');
+  await waitForModal(page, 'Connected Clients');
+  await page.click('.modal.show .btn-secondary, .modal.show button:has-text("Close")');
+});
+
+// ── Logs tab ──────────────────────────────────────────────────────────────
+
+test('switches to the Logs tab and can change source', async () => {
+  await page.click('.nav-link:has-text("Logs")');
+  await expect(page.locator('.tab-pane.active label').filter({ hasText: /^Server$/ })).toBeVisible({
+    timeout: 10_000,
+  });
+  // Switch to Client logs — Bootstrap btn-check inputs have pointer-events:none; click the label
+  await page
+    .locator('.tab-pane.active label')
+    .filter({ hasText: /^Client$/ })
+    .click();
+});
+
+// ── Backups tab ──────────────────────────────────────────────────────────
+
+test('switches to the Backups tab', async () => {
+  await page.click('.nav-link:has-text("Backups")');
+  // Wait for the loading spinner to resolve to either the backups table or the empty-state alert.
+  // Scope to elements unique to ConfigBackups to avoid matching the RBAC modal's table.
+  await expect(
+    page
+      .locator('.alert:has-text("No backup files found")')
+      .or(page.locator('th:has-text("Filename")'))
+  ).toBeVisible({ timeout: 10_000 });
+});

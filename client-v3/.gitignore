@@ -1,8 +1,0 @@
-node_modules/
-dist/
-dist-electron/
-junit/
-coverage/
-*.backup
-components.d.ts
-public/docs

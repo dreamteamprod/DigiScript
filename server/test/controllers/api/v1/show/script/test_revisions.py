@@ -8,9 +8,11 @@ from models.script import (
     ScriptLineRevisionAssociation,
     ScriptRevision,
 )
+from models.script_draft import ScriptDraft
 from models.show import Act, Character, Scene, Show, ShowScriptType
 from models.user import User
 from test.conftest import DigiScriptTestCase
+from test.helpers.script_fixtures import create_show_script_revision, mock_active_room
 
 
 class TestScriptRevisionsController(DigiScriptTestCase):
@@ -1060,6 +1062,94 @@ class TestScriptRevisionBranchingWithLines(DigiScriptTestCase):
             script = session.get(Script, self.script_id)
             self.assertEqual(revision2_id, script.current_revision)
 
+    def test_branch_preserves_linked_list_integrity(self):
+        """After branching, the new revision's linked list is fully traversable.
+
+        Regression guard: any change to the revision creation logic that breaks
+        pointer copying will make the full walk return fewer than 5 lines.
+        """
+        # Create 5 lines in revision 1
+        lines = [
+            {
+                "id": None,
+                "act_id": self.act_id,
+                "scene_id": self.scene_id,
+                "page": 1,
+                "line_type": 1,
+                "line_parts": [
+                    {
+                        "id": None,
+                        "line_id": None,
+                        "part_index": 0,
+                        "character_id": self.character_id,
+                        "character_group_id": None,
+                        "line_text": f"Line {i}",
+                    }
+                ],
+                "stage_direction_style_id": None,
+            }
+            for i in range(1, 6)
+        ]
+        response = self.fetch(
+            "/api/v1/show/script?page=1",
+            method="POST",
+            body=tornado.escape.json_encode(lines),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+
+        # Branch from revision 1
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {
+                    "description": "Branch from revision 1",
+                    "parent_revision_id": self.revision1_id,
+                    "set_as_current": False,
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
+        branch_revision_id = tornado.escape.json_decode(response.body)["id"]
+
+        # Walk the linked list from head to verify all 5 lines are reachable
+        with self._app.get_db().sessionmaker() as session:
+            assocs = session.scalars(
+                select(ScriptLineRevisionAssociation).where(
+                    ScriptLineRevisionAssociation.revision_id == branch_revision_id
+                )
+            ).all()
+
+            by_id = {
+                a.line_id: {"next": a.next_line_id, "prev": a.previous_line_id}
+                for a in assocs
+            }
+
+            # Find head (previous_line_id IS NULL)
+            heads = [lid for lid, d in by_id.items() if d["prev"] is None]
+            self.assertEqual(
+                1, len(heads), "Branch revision should have exactly one head"
+            )
+
+            # Walk the chain
+            visited = []
+            current = heads[0]
+            seen = set()
+            while current is not None:
+                self.assertNotIn(current, seen, "Linked list must not contain a loop")
+                self.assertIn(current, by_id, "Broken pointer: line not in revision")
+                seen.add(current)
+                visited.append(current)
+                current = by_id[current]["next"]
+
+            self.assertEqual(
+                5,
+                len(visited),
+                f"All 5 lines must be reachable via the linked list; got {len(visited)}",
+            )
+
 
 class TestScriptRevisionDeletionTreeIntegrity(DigiScriptTestCase):
     """Test that deleting middle nodes maintains tree integrity.
@@ -1214,3 +1304,228 @@ class TestScriptRevisionDeletionTreeIntegrity(DigiScriptTestCase):
                 revision_e.previous_revision_id,
                 "Revision E should now point to B after C is deleted",
             )
+
+
+class TestRevisionLifecycleGuards(DigiScriptTestCase):
+    """Test Phase 5 lifecycle guards on load, create, and delete revision operations.
+
+    Guards prevent destructive operations when a collaborative room is active
+    or an unsaved draft exists for the target revision.
+    """
+
+    def setUp(self):
+        super().setUp()
+        with self._app.get_db().sessionmaker() as session:
+            user = User(username="admin", password="hashed", is_admin=True)
+            session.add(user)
+            session.flush()
+            self.user_id = user.id
+
+            show, script, revision1 = create_show_script_revision(
+                session, description="Initial"
+            )
+            self.show_id = show.id
+            self.script_id = script.id
+            self.revision1_id = revision1.id
+
+            revision2 = ScriptRevision(
+                script_id=script.id,
+                revision=2,
+                description="Second",
+                previous_revision_id=revision1.id,
+            )
+            session.add(revision2)
+            session.flush()
+            self.revision2_id = revision2.id
+
+            session.commit()
+
+        self._app.digi_settings.settings["current_show"].set_value(self.show_id)
+        self.token = self._app.jwt_service.create_access_token(
+            data={"user_id": self.user_id}
+        )
+
+    def test_get_revisions_annotates_has_draft(self):
+        """GET /revisions annotates each revision with has_draft from DB draft record."""
+        with self._app.get_db().sessionmaker() as session:
+            draft = ScriptDraft(revision_id=self.revision1_id)
+            session.add(draft)
+            session.commit()
+
+        response = self.fetch("/api/v1/show/script/revisions")
+        self.assertEqual(200, response.code)
+
+        body = tornado.escape.json_decode(response.body)
+        rev1 = next(r for r in body["revisions"] if r["id"] == self.revision1_id)
+        rev2 = next(r for r in body["revisions"] if r["id"] == self.revision2_id)
+        self.assertTrue(
+            rev1["has_draft"], "Revision with draft should have has_draft=True"
+        )
+
+        self.assertFalse(
+            rev2["has_draft"], "Revision without draft should have has_draft=False"
+        )
+
+    def test_get_revisions_annotates_has_draft_via_room(self):
+        """GET /revisions sets has_draft=True for revision whose room is active."""
+        with mock_active_room(
+            self._app, has_editors=True, revision_id=self.revision1_id
+        ):
+            response = self.fetch("/api/v1/show/script/revisions")
+            self.assertEqual(200, response.code)
+
+            body = tornado.escape.json_decode(response.body)
+            rev1 = next(r for r in body["revisions"] if r["id"] == self.revision1_id)
+            rev2 = next(r for r in body["revisions"] if r["id"] == self.revision2_id)
+            self.assertTrue(rev1["has_draft"])
+            self.assertFalse(rev2["has_draft"])
+
+    def test_load_current_revision_with_active_room_returns_409(self):
+        """POST /revisions/current returns 409 when current revision has a non-empty room."""
+        with mock_active_room(
+            self._app, has_editors=True, revision_id=self.revision1_id
+        ):
+            response = self.fetch(
+                "/api/v1/show/script/revisions/current",
+                method="POST",
+                body=tornado.escape.json_encode({"new_rev_id": self.revision2_id}),
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            self.assertEqual(409, response.code)
+            body = tornado.escape.json_decode(response.body)
+            self.assertIn("collaborative edit session", body["message"])
+
+    def test_load_current_revision_with_a_viewer_but_no_editor_succeeds(self):
+        """POST /revisions/current succeeds when the current revision's room has
+        no editor — even with a viewer in it (Phase 4 Step A: a mere viewer
+        watching the live draft has nothing a revision load would disrupt).
+
+        revision_id and is_empty are both set explicitly to realistic,
+        non-default values (a room for *this* revision, not empty because a
+        viewer is in it) so this only passes because of has_editors=False —
+        not because an unset MagicMock attribute happened to be falsy/truthy.
+        """
+        # setUp's current_show.set_value() queues a deferred show_changed IOLoop
+        # callback (itself an unconditional close_active_room()) that only runs on
+        # the next request this test drives the loop with — flush it here, against
+        # the real (inactive) room_manager, before mock_active_room installs the
+        # mock this test's own close_room_if_stale_revision assertion below cares
+        # about.
+        self.fetch("/api/v1/show/script/revisions")
+
+        with mock_active_room(
+            self._app,
+            revision_id=self.revision1_id,
+            has_editors=False,
+            is_empty=False,
+        ):
+            response = self.fetch(
+                "/api/v1/show/script/revisions/current",
+                method="POST",
+                body=tornado.escape.json_encode({"new_rev_id": self.revision2_id}),
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            self.assertEqual(200, response.code)
+
+            # The room was left open on revision1 — now stale, since the current
+            # revision just became revision2 — so it must be closed; otherwise
+            # every viewer in it keeps watching a Y.Doc for a revision that's no
+            # longer current.
+            self._app.room_manager.close_room_if_stale_revision.assert_awaited_once_with(
+                self._app.room_manager.get_active_room.return_value, self.revision2_id
+            )
+
+    def test_load_current_revision_delegates_the_close_decision_with_the_correct_revision_id(
+        self,
+    ):
+        """POST /revisions/current always delegates the close-or-not decision to
+        close_room_if_stale_revision (direct unit tests on that method, in
+        test_script_room.py, cover whether it actually closes — e.g. leaving a
+        room alone that's already for the new revision, such as a viewer who
+        already followed the switch via a role-refresh join). This test only
+        confirms the controller passes the right room and target revision id
+        through, using a room that's already for the new revision as a second,
+        distinct starting state from the sibling test above.
+        """
+        # See the sibling test above for why this flushes setUp's deferred
+        # show_changed callback before mock_active_room installs the mock.
+        self.fetch("/api/v1/show/script/revisions")
+
+        with mock_active_room(
+            self._app,
+            revision_id=self.revision2_id,
+            has_editors=False,
+            is_empty=False,
+        ):
+            response = self.fetch(
+                "/api/v1/show/script/revisions/current",
+                method="POST",
+                body=tornado.escape.json_encode({"new_rev_id": self.revision2_id}),
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            self.assertEqual(200, response.code)
+            self._app.room_manager.close_room_if_stale_revision.assert_awaited_once_with(
+                self._app.room_manager.get_active_room.return_value, self.revision2_id
+            )
+
+    def test_create_revision_with_db_draft_on_parent_returns_409(self):
+        """POST /revisions returns 409 when parent revision has a DB draft record."""
+        with self._app.get_db().sessionmaker() as session:
+            draft = ScriptDraft(revision_id=self.revision1_id)
+            session.add(draft)
+            session.commit()
+
+        response = self.fetch(
+            "/api/v1/show/script/revisions",
+            method="POST",
+            body=tornado.escape.json_encode({"description": "Blocked revision"}),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(409, response.code)
+        body = tornado.escape.json_decode(response.body)
+        self.assertIn("active room or unsaved draft", body["message"])
+
+    def test_create_revision_with_active_room_on_parent_returns_409(self):
+        """POST /revisions returns 409 when parent revision has a non-empty in-memory room."""
+        with mock_active_room(
+            self._app, has_editors=True, revision_id=self.revision1_id
+        ):
+            response = self.fetch(
+                "/api/v1/show/script/revisions",
+                method="POST",
+                body=tornado.escape.json_encode({"description": "Blocked revision"}),
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            self.assertEqual(409, response.code)
+            body = tornado.escape.json_decode(response.body)
+            self.assertIn("active room or unsaved draft", body["message"])
+
+    def test_delete_revision_with_db_draft_returns_409(self):
+        """DELETE /revisions returns 409 when target revision has a DB draft record."""
+        with self._app.get_db().sessionmaker() as session:
+            draft = ScriptDraft(revision_id=self.revision2_id)
+            session.add(draft)
+            session.commit()
+
+        response = self.fetch(
+            f"/api/v1/show/script/revisions?rev_id={self.revision2_id}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(409, response.code)
+        body = tornado.escape.json_decode(response.body)
+        self.assertIn("active room or unsaved draft", body["message"])
+
+    def test_delete_revision_with_active_room_returns_409(self):
+        """DELETE /revisions returns 409 when target revision has a non-empty in-memory room."""
+        with mock_active_room(
+            self._app, has_editors=True, revision_id=self.revision2_id
+        ):
+            response = self.fetch(
+                f"/api/v1/show/script/revisions?rev_id={self.revision2_id}",
+                method="DELETE",
+                headers={"Authorization": f"Bearer {self.token}"},
+            )
+            self.assertEqual(409, response.code)
+            body = tornado.escape.json_decode(response.body)
+            self.assertIn("active room or unsaved draft", body["message"])

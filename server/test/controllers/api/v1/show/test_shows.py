@@ -1,5 +1,5 @@
 import tornado.escape
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from models.cue import CueType
 from models.mics import Microphone
@@ -7,6 +7,7 @@ from models.script import Script, ScriptRevision
 from models.session import ShowSession
 from models.show import Act, Character, CharacterGroup, Scene, Show, ShowScriptType
 from models.user import User
+from rbac.role import Role
 from test.conftest import DigiScriptTestCase
 
 
@@ -135,6 +136,63 @@ class TestShowsController(DigiScriptTestCase):
         self.assertEqual(400, response.code)
         response_body = tornado.escape.json_decode(response.body)
         self.assertIn("Invalid script mode value", response_body["message"])
+
+    def test_create_show_validation_messages_and_order(self):
+        """Each invalid payload gets its own 400 message, and checks run in the
+        order name, start, end, date order, script mode."""
+        valid = {
+            "name": "Test Show",
+            "start": "2025-01-01",
+            "end": "2025-12-31",
+            "script_mode": ShowScriptType.FULL.value,
+        }
+        cases = [
+            ({"name": ""}, "Show name missing"),
+            ({"start": ""}, "Start date missing"),
+            ({"start": "not a date"}, "Unable to parse start date value"),
+            ({"end": ""}, "End date missing"),
+            ({"end": "not a date"}, "Unable to parse end date value"),
+            (
+                {"start": "2025-12-31", "end": "2025-01-01"},
+                "Start date must be before or the same as the end date",
+            ),
+            # Order: an earlier problem is reported even when later ones also exist.
+            ({"name": "", "start": ""}, "Show name missing"),
+            ({"start": "", "end": ""}, "Start date missing"),
+            ({"start": "not a date", "end": ""}, "Unable to parse start date value"),
+            (
+                {"start": "2025-12-31", "end": "2025-01-01", "script_mode": 999},
+                "Start date must be before or the same as the end date",
+            ),
+        ]
+        for overrides, expected in cases:
+            with self.subTest(overrides=overrides):
+                response = self.fetch(
+                    "/api/v1/show",
+                    method="POST",
+                    body=tornado.escape.json_encode({**valid, **overrides}),
+                    headers={"Authorization": f"Bearer {self.token}"},
+                )
+                self.assertEqual(400, response.code)
+                self.assertEqual(
+                    expected, tornado.escape.json_decode(response.body)["message"]
+                )
+
+    def test_create_show_same_start_and_end_date_is_allowed(self):
+        response = self.fetch(
+            "/api/v1/show",
+            method="POST",
+            body=tornado.escape.json_encode(
+                {
+                    "name": "One Night Only",
+                    "start": "2025-06-01",
+                    "end": "2025-06-01",
+                    "script_mode": ShowScriptType.FULL.value,
+                }
+            ),
+            headers={"Authorization": f"Bearer {self.token}"},
+        )
+        self.assertEqual(200, response.code)
 
 
 class TestShowDeletionController(DigiScriptTestCase):
@@ -341,6 +399,117 @@ class TestShowDeletionController(DigiScriptTestCase):
             self.assertIsNotNone(
                 session.get(Show, self.show_a_id), "Loaded show must not be deleted"
             )
+
+    def test_delete_show_cleans_up_rbac_mapping_rows(self):
+        """Deleting a show removes RBAC grants on the show itself and on any
+        cascade-deleted cue types/scripts.
+
+        This is handled entirely by the ``DigiDBSession`` delete-hook mechanism
+        (``check_object_deletion`` firing for both the show and every object
+        cascade-deleted with it) -- ``ShowsController.delete()`` has no explicit
+        RBAC cleanup call, deliberately, to verify the hook covers it.
+
+        :raises AssertionError: if any ``rbac_user_*`` row survives the deletion.
+        """
+        with self._app.get_db().sessionmaker() as session:
+            show_b = Show(name="RBAC Show", script_mode=ShowScriptType.FULL)
+            session.add(show_b)
+            session.flush()
+            show_b_id = show_b.id
+
+            script = Script(show_id=show_b_id)
+            session.add(script)
+            session.flush()
+            script_id = script.id
+
+            cue_type = CueType(show_id=show_b_id, prefix="LX", description="Lighting")
+            session.add(cue_type)
+            session.flush()
+            cue_type_id = cue_type.id
+
+            normal_user = User(
+                username="rbac_probe_user", is_admin=False, password="test"
+            )
+            session.add(normal_user)
+            session.flush()
+            normal_user_id = normal_user.id
+            session.commit()
+
+        with self._app.get_db().sessionmaker() as session:
+            show_b = session.get(Show, show_b_id)
+            script = session.get(Script, script_id)
+            cue_type = session.get(CueType, cue_type_id)
+            normal_user = session.get(User, normal_user_id)
+            self._app.rbac.give_role(normal_user, show_b, Role.READ)
+            self._app.rbac.give_role(normal_user, cue_type, Role.READ)
+            self._app.rbac.give_role(normal_user, script, Role.READ)
+
+        response = self._delete(show_b_id)
+        self.assertEqual(200, response.code)
+
+        with self._app.get_db().sessionmaker() as session:
+            self.assertEqual(
+                0,
+                session.execute(
+                    text("SELECT COUNT(*) FROM rbac_user_shows WHERE shows_id = :v"),
+                    {"v": show_b_id},
+                ).scalar(),
+                "rbac_user_shows row should be removed when the show is deleted",
+            )
+            self.assertEqual(
+                0,
+                session.execute(
+                    text(
+                        "SELECT COUNT(*) FROM rbac_user_cuetypes WHERE cuetypes_id = :v"
+                    ),
+                    {"v": cue_type_id},
+                ).scalar(),
+                "rbac_user_cuetypes row should be removed when its show cascade-deletes"
+                " the cue type",
+            )
+            self.assertEqual(
+                0,
+                session.execute(
+                    text("SELECT COUNT(*) FROM rbac_user_script WHERE script_id = :v"),
+                    {"v": script_id},
+                ).scalar(),
+                "rbac_user_script row should be removed when its show cascade-deletes"
+                " the script",
+            )
+
+    def test_delete_show_unauthenticated(self):
+        """An unauthenticated request cannot delete a show."""
+        show_b_id = self._create_show()
+        response = self.fetch(
+            f"/api/v1/show?id={show_b_id}",
+            method="DELETE",
+            allow_nonstandard_methods=True,
+        )
+        self.assertEqual(401, response.code)
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNotNone(session.get(Show, show_b_id))
+
+    def test_delete_show_unauthenticated_nonexistent_show(self):
+        """Auth is checked before the show lookup, so existence is not leaked."""
+        response = self.fetch(
+            "/api/v1/show?id=99999", method="DELETE", allow_nonstandard_methods=True
+        )
+        self.assertEqual(401, response.code)
+
+    def test_delete_show_non_admin(self):
+        """A logged-in non-admin cannot delete a show."""
+        show_b_id = self._create_show()
+        with self._app.get_db().sessionmaker() as session:
+            user = User(username="regular", is_admin=False, password="test")
+            session.add(user)
+            session.flush()
+            user_id = user.id
+            session.commit()
+        token = self._app.jwt_service.create_access_token({"user_id": user_id})
+        response = self._delete(show_b_id, token=token)
+        self.assertEqual(403, response.code)
+        with self._app.get_db().sessionmaker() as session:
+            self.assertIsNotNone(session.get(Show, show_b_id))
 
     def test_delete_currently_loaded_show(self):
         """Attempting to delete the currently loaded show returns 400."""
