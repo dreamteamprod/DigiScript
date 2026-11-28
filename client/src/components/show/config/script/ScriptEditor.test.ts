@@ -136,6 +136,9 @@ describe('ScriptEditor', () => {
       onLineChange: (index: number, line: ScriptLine) => void;
       autosave: () => Promise<void>;
       firstInvalidLine: { page: string; error: string } | null;
+      saveScript: () => Promise<void>;
+      linePartCuts: number[];
+      savingInProgress: boolean;
     };
   }
 
@@ -282,6 +285,40 @@ describe('ScriptEditor', () => {
 
       expect(vm(w).editingLines.has('page_1_line_2')).toBe(true);
       expect(vm(w).editingLines.has('page_1_line_1')).toBe(false);
+    });
+  });
+
+  describe('saving cuts (cut mode)', () => {
+    it('keeps the pending cuts and clears the in-progress flag when the save fails', async () => {
+      const scriptStore = useScriptStore();
+      scriptStore.cuts = [7];
+      vi.spyOn(scriptStore, 'saveCuts').mockResolvedValue(false);
+      seedSavedPage(1, [makeLine(1)]);
+      const w = await mountEditor();
+      useScriptConfigStore().setCutMode(true);
+      vm(w).linePartCuts.push(42);
+
+      await vm(w).saveScript();
+
+      expect(vm(w).linePartCuts).toContain(42);
+      expect(vm(w).savingInProgress).toBe(false);
+    });
+
+    it('adopts the saved cuts when the save succeeds', async () => {
+      const scriptStore = useScriptStore();
+      scriptStore.cuts = [7];
+      vi.spyOn(scriptStore, 'saveCuts').mockImplementation(async () => {
+        scriptStore.cuts = [42];
+        return true;
+      });
+      seedSavedPage(1, [makeLine(1)]);
+      const w = await mountEditor();
+      useScriptConfigStore().setCutMode(true);
+
+      await vm(w).saveScript();
+
+      expect(vm(w).linePartCuts).toEqual([42]);
+      expect(vm(w).savingInProgress).toBe(false);
     });
   });
 

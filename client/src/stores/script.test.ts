@@ -1,8 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import type { ScriptLine } from '@/types/api/script';
 import type { Cue } from '@/types/api/cues';
+import { toast } from '@/js/toast';
 import { useScriptStore } from './script';
+
+vi.mock('@/js/toast', () => ({
+  toast: { info: vi.fn(), error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+}));
 
 function makeLine(id: number): ScriptLine {
   return {
@@ -95,5 +100,48 @@ describe('script store cue tracking getters', () => {
     const result = store.lastCuePerTypeAt(1, 0);
 
     expect(result[100].id).toBe(2);
+  });
+});
+
+describe('script store saveCuts', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    vi.mocked(toast.error).mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('resolves false and toasts when the request is rejected', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+    await expect(useScriptStore().saveCuts([1])).resolves.toBe(false);
+    expect(toast.error).toHaveBeenCalledWith('Unable to save script cuts');
+  });
+
+  it('resolves false and toasts on a non-OK response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+
+    await expect(useScriptStore().saveCuts([1])).resolves.toBe(false);
+    expect(toast.error).toHaveBeenCalledWith('Unable to save script cuts');
+  });
+
+  it('still resolves true, with a warning, when the PUT succeeds but the refresh fails', async () => {
+    const store = useScriptStore();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    vi.spyOn(store, 'getCuts').mockRejectedValue(new Error('refresh failed'));
+
+    await expect(store.saveCuts([1])).resolves.toBe(true);
+    expect(toast.warning).toHaveBeenCalledWith('Script cuts saved, but could not be refreshed');
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('resolves true on success', async () => {
+    const store = useScriptStore();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    vi.spyOn(store, 'getCuts').mockResolvedValue();
+
+    await expect(store.saveCuts([1])).resolves.toBe(true);
   });
 });
