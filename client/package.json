@@ -31,7 +31,10 @@
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:firefox": "playwright test --project=firefox",
     "test:e2e:all": "playwright test",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:docs": "DOCS_SCREENSHOTS=1 playwright test --project=chromium --update-snapshots=${DOCS_UPDATE:-changed}",
+    "test:e2e:docs:docker": "../scripts/docs-screenshots-docker.sh",
+    "docs:shots:check": "node ../scripts/check-docs-screenshots.mjs"
   },
   "engines": {
     "node": ">=24.15.0 <25"
@@ -52,7 +55,7 @@
     "fuse.js": "^7.5.0",
     "lodash": "^4.18.1",
     "loglevel": "^1.9.2",
-    "marked": "^18.2.1",
+    "marked": "^18.3.0",
     "pinia": "^3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "splitpanes": "^4.1.2",
@@ -70,8 +73,8 @@
     "@playwright/test": "^1.65.1",
     "@types/lodash": "~4.17.27",
     "@types/node": "^26.6.6",
-    "@typescript-eslint/eslint-plugin": "^8.73.0",
-    "@typescript-eslint/parser": "^8.73.0",
+    "@typescript-eslint/eslint-plugin": "^8.74.0",
+    "@typescript-eslint/parser": "^8.74.0",
     "@vitejs/plugin-vue": "^6.0.11",
     "@vitest/ui": "^4.1.12",
     "@vue/test-utils": "^2.6.0",
@@ -85,7 +88,7 @@
     "prettier": "^3.10.1",
     "sass": "1.108.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.73.0",
+    "typescript-eslint": "^8.74.0",
     "unplugin-icons": "^23.0.1",
     "unplugin-vue-components": "^32.1.0",
     "vite": "^8.3.8",

@@ -129,12 +129,19 @@ describe('ScriptEditor', () => {
       navigateUp: (page: number, index: number) => void;
       navigateDown: (page: number, index: number) => void;
       deleteLine: (page: number, index: number) => void;
-      insertLineAt: (page: number, index: number, type: number) => Promise<void>;
+      insertLineAt: (page: number, index: number, type: number) => void;
       beginEditingLine: (page: number, index: number) => void;
       doneEditingLine: (page: number, index: number) => void;
+      finishAndAddLine: (page: number, index: number) => void;
       onLineChange: (index: number, line: ScriptLine) => void;
       autosave: () => Promise<void>;
       firstInvalidLine: { page: string; error: string } | null;
+      saveScript: () => Promise<void>;
+      linePartCuts: number[];
+      savingInProgress: boolean;
+      loadBoundaryLines: () => Promise<void>;
+      previousLineOfStart: ScriptLine | null;
+      nextLineOfEnd: ScriptLine | null;
     };
   }
 
@@ -159,9 +166,35 @@ describe('ScriptEditor', () => {
       vm(w).onToggleSelect(2);
       expect(vm(w).selectionCount).toBe(3);
 
-      await vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING);
+      vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING);
 
       expect(vm(w).selectionCount).toBe(0);
+    });
+  });
+
+  describe('finishAndAddLine', () => {
+    it('closes the current line and opens a new dialogue line below it', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      vm(w).beginEditingLine(1, 0);
+
+      vm(w).finishAndAddLine(1, 0);
+
+      expect(vm(w).editingLines.has('page_1_line_0')).toBe(false);
+      expect(useScriptConfigStore().getTmpPage(1)).toHaveLength(3);
+      expect(useScriptConfigStore().getTmpPage(1)[1].line_type).toBe(LINE_TYPES.DIALOGUE);
+    });
+
+    it('toasts instead of throwing when inserting the line fails', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      vi.spyOn(useScriptConfigStore(), 'insertBlankLine').mockImplementation(() => {
+        throw new Error('boom');
+      });
+
+      expect(() => vm(w).finishAndAddLine(1, 0)).not.toThrow();
+
+      expect(toast.error).toHaveBeenCalledWith('Unable to add a new line. Please try again.');
     });
   });
 
@@ -185,7 +218,7 @@ describe('ScriptEditor', () => {
     it('shifts an open editor down when deleting an unsaved line actually splices', async () => {
       seedSavedPage(1, [makeLine(1), makeLine(2)]);
       const w = await mountEditor();
-      await vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // unsaved line inserted at index 1
+      vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // unsaved line inserted at index 1
       vm(w).beginEditingLine(1, 2); // open editor on what is now index 2
 
       vm(w).deleteLine(1, 1); // deletes the unsaved line at index 1 — a real splice
@@ -205,9 +238,66 @@ describe('ScriptEditor', () => {
       vm(w).deleteLine(1, 1); // tombstones index 1
       vm(w).beginEditingLine(1, 2);
 
-      await vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // reuses the index-1 tombstone
+      vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // reuses the index-1 tombstone
 
       expect(vm(w).editingLines.has('page_1_line_2')).toBe(true);
+    });
+  });
+
+  describe('rows are keyed by a stable identity, not their index', () => {
+    const viewerFor = (w: VueWrapper, lineId: number) =>
+      w.findAllComponents(ViewerStub).find((c) => c.props('line').id === lineId);
+
+    it('keeps a row’s component instance when a line is inserted above it', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2), makeLine(3)]);
+      const w = await mountEditor();
+      const before = viewerFor(w, 2);
+      expect(before).toBeDefined();
+
+      await vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // new line lands at index 1
+      await flushPromises();
+
+      // Index-keyed rows would hand line 2's old instance to the new line and give
+      // line 2 a different one — a reused instance can briefly show another line.
+      expect(viewerFor(w, 2)?.vm).toBe(before?.vm);
+    });
+
+    it('keeps a row’s component instance when an unsaved line above it is spliced out', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2)]);
+      const w = await mountEditor();
+      await vm(w).insertLineAt(1, 0, LINE_TYPES.SPACING); // unsaved line at index 1
+      vm(w).doneEditingLine(1, 1);
+      await flushPromises();
+      const before = viewerFor(w, 2); // now at index 2
+
+      vm(w).deleteLine(1, 1); // real splice: line 2 moves to index 1
+      await flushPromises();
+
+      expect(viewerFor(w, 2)?.vm).toBe(before?.vm);
+    });
+  });
+
+  describe('bulk-edit boundary lines skip soft-deleted rows', () => {
+    it('previousLineOfStart is the nearest live line, not a tombstone', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2), makeLine(3)]);
+      const w = await mountEditor();
+      vm(w).deleteLine(1, 1); // tombstone index 1
+
+      vm(w).onToggleSelect(2);
+      await vm(w).loadBoundaryLines();
+
+      expect(vm(w).previousLineOfStart?.id).toBe(1);
+    });
+
+    it('nextLineOfEnd is the nearest live line, not a tombstone', async () => {
+      seedSavedPage(1, [makeLine(1), makeLine(2), makeLine(3)]);
+      const w = await mountEditor();
+      vm(w).deleteLine(1, 1);
+
+      vm(w).onToggleSelect(0);
+      await vm(w).loadBoundaryLines();
+
+      expect(vm(w).nextLineOfEnd?.id).toBe(3);
     });
   });
 
@@ -258,6 +348,40 @@ describe('ScriptEditor', () => {
     });
   });
 
+  describe('saving cuts (cut mode)', () => {
+    it('keeps the pending cuts and clears the in-progress flag when the save fails', async () => {
+      const scriptStore = useScriptStore();
+      scriptStore.cuts = [7];
+      vi.spyOn(scriptStore, 'saveCuts').mockResolvedValue(false);
+      seedSavedPage(1, [makeLine(1)]);
+      const w = await mountEditor();
+      useScriptConfigStore().setCutMode(true);
+      vm(w).linePartCuts.push(42);
+
+      await vm(w).saveScript();
+
+      expect(vm(w).linePartCuts).toContain(42);
+      expect(vm(w).savingInProgress).toBe(false);
+    });
+
+    it('adopts the saved cuts when the save succeeds', async () => {
+      const scriptStore = useScriptStore();
+      scriptStore.cuts = [7];
+      vi.spyOn(scriptStore, 'saveCuts').mockImplementation(async () => {
+        scriptStore.cuts = [42];
+        return true;
+      });
+      seedSavedPage(1, [makeLine(1)]);
+      const w = await mountEditor();
+      useScriptConfigStore().setCutMode(true);
+
+      await vm(w).saveScript();
+
+      expect(vm(w).linePartCuts).toEqual([42]);
+      expect(vm(w).savingInProgress).toBe(false);
+    });
+  });
+
   describe('autosave does not misreport success when it cannot actually save', () => {
     it('stays silent while a line is open for editing', async () => {
       // Regression: autosave always showed "Performing autosave..." then
@@ -279,7 +403,7 @@ describe('ScriptEditor', () => {
     it('stays silent when an invalid line would block Save, even with no editor open', async () => {
       seedSavedPage(1, []);
       const w = await mountEditor();
-      await vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE); // appends an invalid dialogue line
+      vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE); // appends an invalid dialogue line
       vm(w).doneEditingLine(1, 0); // close it, isolating the invalid-line gate from the open-editor one
       await flushPromises();
       expect(vm(w).editingLines.size).toBe(0); // sanity-check the isolation
@@ -312,7 +436,7 @@ describe('ScriptEditor', () => {
     it('shows the invalid-line reason as visible text', async () => {
       seedSavedPage(1, []);
       const w = await mountEditor();
-      await vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE);
+      vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE);
       vm(w).doneEditingLine(1, 0);
       await flushPromises();
 
@@ -375,7 +499,7 @@ describe('ScriptEditor', () => {
     it('does flag a brand-new invalid line', async () => {
       seedSavedPage(1, []);
       const w = await mountEditor();
-      await vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE); // appends to the empty page
+      vm(w).insertLineAt(1, -1, LINE_TYPES.DIALOGUE); // appends to the empty page
       await flushPromises();
 
       expect(vm(w).firstInvalidLine).not.toBeNull();
@@ -388,7 +512,7 @@ describe('ScriptEditor', () => {
       // status.inserted, which firstInvalidLine must also check.
       seedSavedPage(1, [makeLine(1), makeLine(2)]);
       const w = await mountEditor();
-      await vm(w).insertLineAt(1, 0, LINE_TYPES.DIALOGUE); // inserts between the two saved lines
+      vm(w).insertLineAt(1, 0, LINE_TYPES.DIALOGUE); // inserts between the two saved lines
       await flushPromises();
 
       expect(vm(w).firstInvalidLine).not.toBeNull();

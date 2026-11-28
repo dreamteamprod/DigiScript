@@ -11,6 +11,7 @@ import {
   waitForModalClosed,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -20,7 +21,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config`);
@@ -34,6 +35,14 @@ test.afterAll(async () => {
 test('show config landing page displays show details table', async () => {
   await expect(page.locator('table')).toBeVisible();
   await expect(page.locator('td:has-text("E2E Test Show")')).toBeVisible();
+  const detailValue = (label: string) =>
+    page.locator('tr', { hasText: label }).locator('td').last();
+  await docShot(page, 'config_show/config_overview', {
+    fixText: [
+      { locator: detailValue('Created At'), text: '2025-01-06T09:30:12.104744' },
+      { locator: detailValue('Edited At'), text: '2025-01-06T09:30:12.104744' },
+    ],
+  });
 });
 
 test('Edit Show button is visible for admin', async () => {

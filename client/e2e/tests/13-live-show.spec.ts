@@ -30,8 +30,11 @@ import {
   confirmModal,
   waitForModalClosed,
   confirmDialog,
+  addDialogueLine,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
+import { ShowApi, seedStagePlan, removeStagePlan, type StagePlan } from '../seed.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -40,32 +43,57 @@ registerRetryHooks();
 const FOLLOWER_USERNAME = 'live-follower';
 const FOLLOWER_PASSWORD = 'followerpass';
 
-let leaderCtx: BrowserContext;
-let followerCtx: BrowserContext;
+// Undefined until beforeAll gets that far, so afterAll must tolerate them missing.
+let leaderCtx: BrowserContext | undefined;
+let followerCtx: BrowserContext | undefined;
 let leaderPage: Page;
 let followerPage: Page;
+// Seeded so the Stage Manager pane and Plan modal have something to show; allocations can't
+// change once a session is live, so this is created up front and removed after the session ends.
+let stagePlan: StagePlan;
+
+/** The elapsed-time counter ticks every second, so it can't be captured as-is. */
+const elapsedTime = (page: Page) => page.locator('.session-header').getByText(/^Elapsed Time:/);
 
 test.beforeAll(async ({ browser, request }) => {
-  leaderCtx = await browser.newContext();
+  leaderCtx = await newContext(browser);
   leaderPage = await leaderCtx.newPage();
   await loginAsAdmin(leaderPage);
+  stagePlan = await seedStagePlan(await ShowApi.asAdmin(request));
 
   // Create a distinct, non-admin user for the follower so it has a different
   // user_id from the leader (admin) — see the file header comment.
   const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
   await createUser(request, adminToken, FOLLOWER_USERNAME, FOLLOWER_PASSWORD);
 
-  followerCtx = await browser.newContext();
+  followerCtx = await newContext(browser);
   followerPage = await followerCtx.newPage();
   await loginAs(followerPage, FOLLOWER_USERNAME, FOLLOWER_PASSWORD);
 });
 
 test.afterAll(async ({ request }) => {
-  await leaderCtx.close();
-  await followerCtx.close();
-
-  const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
-  await deleteUserByUsername(request, adminToken, FOLLOWER_USERNAME);
+  // Independent steps: beforeAll may have failed part way, and a failed attempt may have left
+  // the stage plan undeletable (e.g. a session still live). None of that may stop the other
+  // steps running or replace the test's own failure; all cleanup errors are rethrown last.
+  const failures: unknown[] = [];
+  const attempt = async (step: () => Promise<unknown>) => {
+    try {
+      await step();
+    } catch (error) {
+      failures.push(error);
+    }
+  };
+  await attempt(async () => leaderCtx?.close());
+  await attempt(async () => followerCtx?.close());
+  await attempt(async () => {
+    if (stagePlan) await removeStagePlan(await ShowApi.asAdmin(request), stagePlan);
+  });
+  await attempt(async () => {
+    const adminToken = await apiLogin(request, ADMIN_USERNAME, ADMIN_PASSWORD);
+    await deleteUserByUsername(request, adminToken, FOLLOWER_USERNAME);
+  });
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) throw new AggregateError(failures, 'afterAll cleanup failed');
 });
 
 // ── Session lifecycle ──────────────────────────────────────────────────────
@@ -96,6 +124,7 @@ test('leader can navigate to /live', async () => {
   await waitForAppReady(leaderPage);
   // Script container rendered
   await expect(leaderPage.locator('#script-container')).toBeVisible({ timeout: 15_000 });
+  await docShot(leaderPage, 'live_show/live_with_script', { mask: [elapsedTime(leaderPage)] });
 });
 
 test('leader is NOT in following mode', async () => {
@@ -168,6 +197,9 @@ test('follower survives leader page navigation via Jump To Page reload', async (
   await jumpBtn.click();
   await leaderPage.waitForSelector('.modal.show', { timeout: 5_000 });
   await leaderPage.fill('#page-input', '1');
+  await docShot(leaderPage, 'live_show/live_jump_to_page_modal', {
+    mask: [elapsedTime(leaderPage)],
+  });
   await confirmModal(leaderPage);
 
   await Promise.all([leaderReloaded, followerReloaded]);
@@ -274,6 +306,9 @@ test('cue group buttons in live view are non-interactive display-only buttons', 
 test('pressing C again disables cue add mode', async () => {
   await leaderPage.keyboard.press('C');
   await expect(leaderPage.locator('.add-cue-btn').first()).not.toBeVisible({ timeout: 5_000 });
+  await docShot(leaderPage, 'live_show/live_show_full_mode_with_cues', {
+    mask: [elapsedTime(leaderPage)],
+  });
 });
 
 // ── Enable/disable Stage Manager mode ─────────────────────────────────────
@@ -281,6 +316,27 @@ test('pressing C again disables cue add mode', async () => {
 test('can toggle Stage Manager mode', async () => {
   await leaderPage.locator('text=Live Config').click();
   await leaderPage.click('button:has-text("Enable Stage Manager")');
+  await expect(leaderPage.locator('.stage-manager-pane')).toBeVisible({ timeout: 5_000 });
+  await expect(leaderPage.locator('.stage-manager-pane .scene-card').first()).toBeVisible();
+  await docShot(leaderPage, 'live_show/live_stage_manager_pane', {
+    mask: [elapsedTime(leaderPage)],
+  });
+
+  // The Plan button on a scene card lists what is being set and struck, with the crew assigned.
+  await leaderPage.locator('.stage-manager-pane button:has-text("Plan")').first().click();
+  await waitForModal(leaderPage, /Plan/);
+  // Scene 1 sets the Castle Wall (Bob) and the Chair (Alice) - see seedStagePlan.
+  const planModal = leaderPage.locator('.modal.show');
+  await expect(planModal).toContainText('Castle Wall');
+  await expect(planModal).toContainText('Bob Green');
+  await expect(planModal).toContainText('Chair');
+  await expect(planModal).toContainText('Alice Brown');
+  await docShot(leaderPage, 'live_show/live_plan_modal_crew', {
+    mask: [elapsedTime(leaderPage)],
+  });
+  await leaderPage.locator('.modal.show .modal-footer button').first().click();
+  await waitForModalClosed(leaderPage);
+
   // Stage manager pane appears
   await expect(leaderPage.locator('[class*="stage-manager"], [class*="stageManager"]'))
     .toBeVisible({ timeout: 5_000 })
@@ -312,5 +368,158 @@ test('can stop the show session', async () => {
   // After stop, Live nav link becomes disabled
   await expect(leaderPage.locator('a:has-text("Live")')).toHaveClass(/disabled/, {
     timeout: 10_000,
+  });
+});
+
+// ── COMPACT script mode ───────────────────────────────────────────────────
+//
+// A show's script mode is fixed when it is created, so the single-column COMPACT live view
+// needs a show of its own. Build a small one, run it live, then put the main show back.
+//
+// The COMPACT show is left in the database afterwards because deleting it currently fails
+// (#1561; see the fixme test at the end). That is safe for the specs after this one: spec 14
+// only touches user settings, and spec 15 works on whichever show is loaded (the main show,
+// reloaded below). The COMPACT show's session has ended, its script and cues belong to it
+// alone, and the edit lock taken while seeding its script is released before its session starts
+// (a leaked editor would make spec 15's edit/cut requests fail).
+
+const COMPACT_SHOW = 'E2E Compact Show';
+
+test('creates and loads a COMPACT script mode show', async () => {
+  await leaderPage.goto(`${UI_BASE}/config`);
+  await waitForAppReady(leaderPage);
+  await leaderPage.click('button:has-text("Setup New Show")');
+  await waitForModal(leaderPage, 'Setup New Show');
+  await leaderPage.fill('#show-name-input', COMPACT_SHOW);
+  await leaderPage.fill('#show-start-input', '2025-01-01');
+  await leaderPage.fill('#show-end-input', '2025-03-31');
+  // <option>s are never "visible"; wait for both modes (FULL, COMPACT) to be loaded instead.
+  await expect(leaderPage.locator('#show-script-mode-input option')).toHaveCount(2);
+  await leaderPage.selectOption('#show-script-mode-input', { label: 'COMPACT' });
+
+  // Loading a show reloads the page (SHOW_CHANGED); listen before clicking.
+  const afterLoad = leaderPage.waitForEvent('load', { timeout: 30_000 });
+  await leaderPage.click('.modal.show button:has-text("Save and Load")');
+  await afterLoad;
+  await waitForAppReady(leaderPage);
+  await expect(leaderPage.locator('a:has-text("Show Config")')).toBeVisible({ timeout: 10_000 });
+});
+
+test('seeds the compact show with a script and cues', async ({ request }) => {
+  const api = await ShowApi.asAdmin(request);
+  await api.post('show/act', { name: 'Act 1', interval_after: false, previous_act_id: null });
+  const actId = await api.idByName('show/act', 'acts', 'Act 1');
+  await api.post('show/scene', { act_id: actId, name: 'Scene 1', previous_scene_id: null });
+  await api.post('show/character', { name: 'Hamlet', description: '' });
+  await api.post('show/character', { name: 'Ophelia', description: '' });
+  await api.post('show/cues/types', { prefix: 'LX', description: 'Lighting', colour: '#e74c3c' });
+  await api.post('show/cues/types', { prefix: 'SQ', description: 'Sound', colour: '#3498db' });
+
+  await leaderPage.goto(`${UI_BASE}/show-config/script`);
+  await waitForAppReady(leaderPage);
+  await leaderPage.getByRole('button', { name: 'Edit', exact: true }).click();
+  await expect(leaderPage.locator('button:has-text("Stop Editing")')).toBeVisible({
+    timeout: 10_000,
+  });
+  const lines: Array<[string, string]> = [
+    ['Hamlet', 'To be, or not to be, that is the question.'],
+    ['Ophelia', 'Good my lord, how does your honour for this many a day?'],
+    ['Hamlet', 'I humbly thank you; well, well, well.'],
+  ];
+  for (const [character, text] of lines) {
+    await addDialogueLine(leaderPage, { act: 'Act 1', scene: 'Scene 1', character, text });
+  }
+  await leaderPage.getByRole('button', { name: 'Save', exact: true }).click();
+  await waitForModal(leaderPage, 'Saving Script');
+  await expect(leaderPage.locator('.modal.show').getByText('Finished saving script.')).toBeVisible({
+    timeout: 15_000,
+  });
+  await confirmModal(leaderPage);
+  await waitForModalClosed(leaderPage);
+
+  await leaderPage.goto(`${UI_BASE}/show-config/cues`);
+  await waitForAppReady(leaderPage);
+  await leaderPage.click(
+    '.nav-link:has-text("Cue Configuration"), button[role="tab"]:has-text("Cue Config")'
+  );
+  await expect(leaderPage.locator('.add-cue-btn').first()).toBeVisible({ timeout: 10_000 });
+  const addCue = async (lineIndex: number, typeIndex: number, ident: string) => {
+    await leaderPage.locator('.add-cue-btn').nth(lineIndex).click();
+    await waitForModal(leaderPage, 'Add Cue');
+    await leaderPage.locator('.modal.show select#new-cue-type').selectOption({ index: typeIndex });
+    await leaderPage.locator('.modal.show #new-cue-ident').fill(ident);
+    await confirmModal(leaderPage);
+    await waitForModalClosed(leaderPage);
+  };
+  await addCue(0, 1, '1');
+  await addCue(2, 2, '1');
+  await expect(leaderPage.locator('.cue-button:not(.add-cue-btn)')).toHaveCount(2, {
+    timeout: 5_000,
+  });
+});
+
+test('the COMPACT live view shows a single-column script with its cues', async () => {
+  // Release the edit lock taken above before running the show. The lock survives a reload and
+  // is a server-wide flag, so a leaked editor would reject spec 15's edit/cut requests.
+  // "Stop Editing" only renders after the WS editor-status round trip, so wait for either
+  // settled state before deciding.
+  await leaderPage.goto(`${UI_BASE}/show-config/script`);
+  await waitForAppReady(leaderPage);
+  const stopEditing = leaderPage.locator('button:has-text("Stop Editing")');
+  const editButton = leaderPage.getByRole('button', { name: 'Edit', exact: true });
+  await expect(stopEditing.or(editButton)).toBeVisible({ timeout: 10_000 });
+  if (await stopEditing.isVisible()) {
+    await stopEditing.click();
+    await expect(editButton).toBeVisible({ timeout: 10_000 });
+  }
+
+  await leaderPage.locator('text=Live Config').click();
+  await leaderPage.click('button:has-text("Start Session")');
+  await confirmDialog(leaderPage);
+  await expect(leaderPage.locator('a:has-text("Live")')).not.toHaveClass(/disabled/, {
+    timeout: 10_000,
+  });
+  await leaderPage.click('a:has-text("Live")');
+  await leaderPage.waitForURL(`${UI_BASE}/live`, { timeout: 10_000 });
+  await waitForAppReady(leaderPage);
+  await expect(leaderPage.locator('#script-container')).toBeVisible({ timeout: 15_000 });
+  await expect(leaderPage.locator('.cue-button:not(.add-cue-btn)').first()).toBeVisible({
+    timeout: 10_000,
+  });
+  await docShot(leaderPage, 'live_show/live_show_compact_mode_with_cues', {
+    mask: [elapsedTime(leaderPage)],
+  });
+
+  await leaderPage.locator('text=Live Config').click();
+  await leaderPage.click('button:has-text("Stop Session")');
+  await confirmDialog(leaderPage);
+  await expect(leaderPage.locator('a:has-text("Live")')).toHaveClass(/disabled/, {
+    timeout: 10_000,
+  });
+});
+
+test('reloads the main show', async () => {
+  await leaderPage.goto(`${UI_BASE}/config`);
+  await waitForAppReady(leaderPage);
+  const mainRow = leaderPage.locator('tr', {
+    has: leaderPage.locator('td:has-text("E2E Test Show")'),
+  });
+  const afterLoad = leaderPage.waitForEvent('load', { timeout: 30_000 });
+  await mainRow.locator('button:has-text("Load")').click();
+  await afterLoad;
+  await waitForAppReady(leaderPage);
+  await expect(mainRow.locator('button:has-text("Loaded")')).toBeVisible({ timeout: 10_000 });
+});
+
+// Deleting a show that has script lines and cues returns a 500 after ~5s, so the COMPACT show
+// above is left in the database. Remove this fixme and delete the show there once fixed.
+test.fixme('deletes the COMPACT show (#1561)', async () => {
+  const compactRow = leaderPage.locator('tr', {
+    has: leaderPage.locator(`td:has-text("${COMPACT_SHOW}")`),
+  });
+  await compactRow.locator('button:has-text("Delete")').click();
+  await confirmDialog(leaderPage);
+  await expect(leaderPage.locator(`td:has-text("${COMPACT_SHOW}")`)).not.toBeVisible({
+    timeout: 20_000,
   });
 });

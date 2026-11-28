@@ -12,6 +12,7 @@ import {
   apiLogin,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -21,7 +22,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
 });
 
@@ -42,6 +43,7 @@ test('Login button is enabled once both fields are filled', async () => {
   await page.fill('#username-input', ADMIN_USERNAME);
   await page.fill('#password-input', ADMIN_PASSWORD);
   await expect(page.locator('button:has-text("Login")')).toBeEnabled();
+  await docShot(page, 'getting_started/user_login');
 });
 
 test('shows error message on wrong credentials', async () => {
@@ -56,6 +58,8 @@ test('successful login redirects to home page', async () => {
   await page.waitForURL(`${UI_BASE}/`);
   await waitForAppReady(page);
   await expect(page.locator('nav').getByText(ADMIN_USERNAME)).toBeVisible();
+  // No show has been created yet, so this is the "no show loaded" home page.
+  await docShot(page, 'getting_started/home_no_show');
 });
 
 test('redirects to login when already logged in trying to visit /login', async () => {

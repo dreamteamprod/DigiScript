@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { mount, type VueWrapper } from '@vue/test-utils';
+import type { CharacterAssignee } from '@/types/bulkEdit';
 import SetCharacterOrGroupDialog, {
   type SelectedLinePreview,
 } from './SetCharacterOrGroupDialog.vue';
@@ -52,10 +53,39 @@ describe('SetCharacterOrGroupDialog', () => {
     w.vm.selectedCharacterId = 1;
     w.vm.handleOk();
 
-    const payloads = w.emitted('apply') as [
-      { partIndex: number; characterId: number | null; characterGroupId: number | null },
-    ][];
+    const payloads = w.emitted('apply') as [CharacterAssignee][];
     expect(payloads).toHaveLength(1);
+    expect(payloads[0]![0]).toEqual({ partIndex: 1, characterId: 1, characterGroupId: null });
+  });
+
+  it('emits a narrowed group assignment, with characterId null', () => {
+    const w = mountDialog([
+      {
+        label: 'Line 1',
+        lineTypeLabel: 'Dialogue',
+        parts: [{ characterId: 2, characterGroupId: null }],
+      },
+    ]);
+    w.vm.selectedCharacterGroupId = 7;
+    w.vm.handleOk();
+
+    const payloads = w.emitted('apply') as [CharacterAssignee][];
+    expect(payloads[0]![0]).toEqual({ partIndex: 1, characterId: null, characterGroupId: 7 });
+  });
+
+  it('prefers the character when both a character and a group are somehow set', () => {
+    const w = mountDialog([
+      {
+        label: 'Line 1',
+        lineTypeLabel: 'Dialogue',
+        parts: [{ characterId: 2, characterGroupId: null }],
+      },
+    ]);
+    w.vm.selectedCharacterId = 1;
+    w.vm.selectedCharacterGroupId = 7;
+    w.vm.handleOk();
+
+    const payloads = w.emitted('apply') as [CharacterAssignee][];
     expect(payloads[0]![0]).toEqual({ partIndex: 1, characterId: 1, characterGroupId: null });
   });
 

@@ -86,7 +86,7 @@
       <BCol cols="12">
         <template
           v-for="(line, index) in currentPageLines"
-          :key="`page_${currentPage}_line_${index}`"
+          :key="scriptConfigStore.getLineKey(currentPage, index)"
         >
           <template v-if="!deletedLines.includes(index)">
             <ScriptLineEditor
@@ -242,8 +242,8 @@ import SetCharacterOrGroupDialog, {
 import BulkActSceneModal from './BulkActSceneModal.vue';
 import SaveProgressModal from './SaveProgressModal.vue';
 import type { ScriptLine } from '@/types/api/script';
-import type { BulkEditPayload } from '@/types/bulkEdit';
-import { applyBulkPayloadToLine, narrowAssignee } from '@/js/bulkEditLine';
+import type { BulkEditPayload, CharacterAssignee } from '@/types/bulkEdit';
+import { applyBulkPayloadToLine } from '@/js/bulkEditLine';
 
 const showStore = useShowStore();
 const systemStore = useSystemStore();
@@ -489,7 +489,7 @@ function blankLine(lineType: number): ScriptLine {
   };
 }
 
-async function addNewLine(lineType: number): Promise<void> {
+function addNewLine(lineType: number): void {
   const line = blankLine(lineType);
   scriptConfigStore.addBlankLine(currentPage.value, line);
   const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
@@ -506,10 +506,10 @@ async function addNewLine(lineType: number): Promise<void> {
   }
 }
 
-async function insertLineAt(pageIndex: number, lineIndex: number, lineType: number): Promise<void> {
+function insertLineAt(pageIndex: number, lineIndex: number, lineType: number): void {
   const pageLines = scriptConfigStore.getTmpPage(pageIndex);
   if (pageLines.length - 1 === lineIndex) {
-    await addNewLine(lineType);
+    addNewLine(lineType);
     return;
   }
   const newLineIndex = lineIndex + 1;
@@ -579,12 +579,19 @@ function doneEditingLine(pageIndex: number, lineIndex: number): void {
  * (Done/Esc), which never adds anything — see ScriptLineEditor.vue's own emits. */
 function finishAndAddLine(pageIndex: number, lineIndex: number): void {
   doneEditingLine(pageIndex, lineIndex);
-  insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE).catch((err) => {
+  try {
+    insertLineAt(pageIndex, lineIndex, LINE_TYPES.DIALOGUE);
+  } catch (err) {
     log.error('Failed to add new line', err);
     toast.error('Unable to add a new line. Please try again.');
-  });
+  }
 }
 
+/** Up/Down close the current line without validating it, unlike Esc/Enter. That is
+ * intentional: arrow keys are navigation, not "I'm finished with this line", and
+ * blocking them on a half-filled line would trap the keyboard user. Nothing is lost
+ * or committed invalid — the line stays in the temp script and `firstInvalidLine`
+ * disables Save (naming the offending line) until it's fixed. */
 function navigateUp(pageIndex: number, lineIndex: number): void {
   const deletedOnPage = scriptConfigStore.getDeletedLines(pageIndex);
   let target = lineIndex - 1;
@@ -638,13 +645,62 @@ function cutLinePart(linePartId: number): void {
   else linePartCuts.value.splice(idx, 1);
 }
 
-async function saveScript(): Promise<void> {
-  if (scriptConfigStore.cutMode) {
-    savingInProgress.value = true;
-    await scriptStore.saveCuts(linePartCuts.value);
-    linePartCuts.value = [...scriptStore.cuts];
+/** The cut-mode half of `saveScript`: persists the cut line parts. The store toasts its
+ * own failures, so on failure the user's pending cuts are simply kept. */
+async function saveCutsOnly(): Promise<void> {
+  savingInProgress.value = true;
+  try {
+    if (await scriptStore.saveCuts(linePartCuts.value)) {
+      linePartCuts.value = [...scriptStore.cuts];
+    }
+  } finally {
     setupAutoSave();
     savingInProgress.value = false;
+  }
+}
+
+/** Saves one page of `saveScript`'s page loop. `'skipped'` when the page is empty or has
+ * nothing to send, `'ok'` once it is saved and its local copy refreshed, `'failed'` if
+ * the server rejected it (the caller reports that and stops). */
+async function savePage(pageNo: number): Promise<'skipped' | 'ok' | 'failed'> {
+  const tmpPage = scriptConfigStore.getTmpPage(pageNo);
+  if (tmpPage.length === 0) return 'skipped';
+
+  const actualPage = scriptStore.getScriptPage(pageNo);
+  let ok: boolean;
+
+  if (actualPage.length === 0) {
+    ok = await scriptStore.saveNewPage(
+      pageNo,
+      tmpPage.filter((_, i) => !scriptConfigStore.getDeletedLines(pageNo).includes(i))
+    );
+  } else {
+    const status = computePageStatus(
+      actualPage,
+      tmpPage,
+      scriptConfigStore.getDeletedLines(pageNo),
+      scriptConfigStore.getInsertedLines(pageNo)
+    );
+    const hasChanges =
+      status.added.length > 0 ||
+      status.updated.length > 0 ||
+      status.deleted.length > 0 ||
+      status.inserted.length > 0;
+    if (!hasChanges) return 'skipped';
+
+    ok = await scriptStore.saveChangedPage(pageNo, { page: tmpPage, status });
+  }
+
+  if (!ok) return 'failed';
+  await scriptStore.loadScriptPage(pageNo);
+  scriptConfigStore.addPage(pageNo, scriptStore.getScriptPage(pageNo));
+  scriptConfigStore.resetTracking(pageNo);
+  return 'ok';
+}
+
+async function saveScript(): Promise<void> {
+  if (scriptConfigStore.cutMode) {
+    await saveCutsOnly();
     return;
   }
 
@@ -674,39 +730,7 @@ async function saveScript(): Promise<void> {
 
   for (let pageNo = 1; pageNo <= maxPage; pageNo++) {
     curSavePage.value = pageNo;
-    const tmpPage = scriptConfigStore.getTmpPage(pageNo);
-    if (tmpPage.length === 0) continue;
-
-    const actualPage = scriptStore.getScriptPage(pageNo);
-    let ok: boolean;
-
-    if (actualPage.length === 0) {
-      ok = await scriptStore.saveNewPage(
-        pageNo,
-        tmpPage.filter((_, i) => !scriptConfigStore.getDeletedLines(pageNo).includes(i))
-      );
-    } else {
-      const status = computePageStatus(
-        actualPage,
-        tmpPage,
-        scriptConfigStore.getDeletedLines(pageNo),
-        scriptConfigStore.getInsertedLines(pageNo)
-      );
-      const hasChanges =
-        status.added.length > 0 ||
-        status.updated.length > 0 ||
-        status.deleted.length > 0 ||
-        status.inserted.length > 0;
-      if (!hasChanges) continue;
-
-      ok = await scriptStore.saveChangedPage(pageNo, { page: tmpPage, status });
-    }
-
-    if (ok) {
-      await scriptStore.loadScriptPage(pageNo);
-      scriptConfigStore.addPage(pageNo, scriptStore.getScriptPage(pageNo));
-      scriptConfigStore.resetTracking(pageNo);
-    } else {
+    if ((await savePage(pageNo)) === 'failed') {
       toast.error('Unable to save script. Please try again.');
       saveError.value = true;
       break;
@@ -869,26 +893,19 @@ async function loadBoundaryLines(): Promise<void> {
   const { page: startPage, lineIndex: startIndex } = bulkEditStart.value;
   const { page: endPage, lineIndex: endIndex } = bulkEditEnd.value;
 
-  if (startIndex === 0 && startPage > 1) await loadPage(startPage - 1);
-  const endPageLines = scriptConfigStore.getTmpPage(endPage);
-  if (endIndex === endPageLines.length - 1) await loadPage(endPage + 1);
+  // The neighbours may sit on an adjacent page (a soft-deleted row can push the nearest
+  // live one past the page edge), so make sure both are loaded.
+  if (startPage > 1) await loadPage(startPage - 1);
+  await loadPage(endPage + 1);
 
-  const startPageLines = scriptConfigStore.getTmpPage(startPage);
-  if (startIndex > 0) {
-    previousLineOfStart.value = startPageLines[startIndex - 1] ?? null;
-  } else if (startPage > 1) {
-    previousLineOfStart.value = scriptConfigStore.getTmpPage(startPage - 1).slice(-1)[0] ?? null;
-  } else {
-    previousLineOfStart.value = null;
-  }
-
-  nextLineOfEnd.value =
-    endIndex < endPageLines.length - 1
-      ? (endPageLines[endIndex + 1] ?? null)
-      : (scriptConfigStore.getTmpPage(endPage + 1)[0] ?? null);
+  // getPreviousLine/getNextLine skip soft-deleted rows, which a raw `lines[i - 1]` would
+  // wrongly offer as the boundary. The selection never leaves the current page (it is
+  // cleared on page change), so currentPage is both the start and end page here.
+  previousLineOfStart.value = getPreviousLine(startIndex);
+  nextLineOfEnd.value = getNextLine(endIndex);
 }
 
-async function openSetCharacterDialog(): Promise<void> {
+function openSetCharacterDialog(): void {
   setCharDialog.value?.show();
 }
 
@@ -898,8 +915,8 @@ async function openMoveToSceneDialog(): Promise<void> {
 }
 
 /** Applies a change to every line in the active selection — shared by both the
- * "Set Character or Group" and "Move to Scene" actions, so each only has to build
- * its own half of a `BulkEditPayload` (the other half stays null). */
+ * "Set Character or Group" and "Move to Scene" actions, each building its own kind
+ * of `BulkEditPayload`. */
 function applyToSelection(payload: BulkEditPayload): void {
   if (!bulkEditStart.value || !bulkEditEnd.value) return;
   const pageLines = scriptConfigStore.getTmpPage(currentPage.value);
@@ -912,20 +929,14 @@ function applyToSelection(payload: BulkEditPayload): void {
   }
 }
 
-function onSetCharacterApply(assignee: {
-  partIndex: number;
-  characterId: number | null;
-  characterGroupId: number | null;
-}): void {
-  const narrowed = narrowAssignee(assignee);
-  if (!narrowed) return;
-  applyToSelection({ actScene: null, assignee: narrowed });
+function onSetCharacterApply(assignee: CharacterAssignee): void {
+  applyToSelection({ kind: 'assignee', ...assignee });
   setCharDialog.value?.hide();
   clearSelection();
 }
 
 function onMoveToSceneApply(payload: { actId: number; sceneId: number }): void {
-  applyToSelection({ actScene: payload, assignee: null });
+  applyToSelection({ kind: 'actScene', ...payload });
   moveToSceneModal.value?.hide();
   clearSelection();
 }

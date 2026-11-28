@@ -12,6 +12,7 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -21,7 +22,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config/cues`);
@@ -45,6 +46,13 @@ test('with no cue types, Script Cues asks for some first', async () => {
   await expect(
     page.locator('.tab-pane.active button:has-text("Import from Another Show")')
   ).toBeVisible();
+});
+
+test('the Cue Types tab starts empty', async () => {
+  await page.click('.nav-link:has-text("Cue Types")');
+  await expect(page.locator('.tab-pane.active button:has-text("New Cue Type")')).toBeVisible();
+  await docShot(page, 'config_show/cue_types_empty');
+  await page.click('.nav-link:has-text("Script Cues")');
 });
 
 test('a suggested cue type opens the new type form, pre-filled, on the Cue Types tab', async () => {
@@ -81,6 +89,7 @@ test('creates a cue type SQ', async () => {
   await confirmModal(page);
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("SQ")').first()).toBeVisible();
+  await docShot(page, 'config_show/cue_types');
 });
 
 test('edits a cue type', async () => {
@@ -107,6 +116,7 @@ test('switches to the Script Cues tab', async () => {
   await page.click('.nav-link:has-text("Script Cues")');
   // The editor loads the script view — shows page navigation
   await expect(page.locator('button:has-text("Go to Page")')).toBeVisible({ timeout: 10_000 });
+  await docShot(page, 'config_show/cue_configuration_empty');
 });
 
 test('the toolbar has page navigation, a find box and a cue type filter', async () => {

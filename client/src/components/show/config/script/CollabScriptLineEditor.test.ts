@@ -1,7 +1,7 @@
 /* eslint-disable vue/one-component-per-file -- small in-file stubs */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h } from 'vue';
 import CollabScriptLineEditor from './CollabScriptLineEditor.vue';
 import { passthrough, SelectStub } from './testStubs';
@@ -247,6 +247,87 @@ describe('CollabScriptLineEditor', () => {
     });
     expect(wrapper.text()).toContain('Cue Lines have no editable content.');
     expect(wrapper.findAll('.part-stub')).toHaveLength(0);
+  });
+
+  function mountAttached(lineType: number, lineParts = [] as DraftScriptLine['line_parts']) {
+    return mount(CollabScriptLineEditor, {
+      attachTo: document.body,
+      props: {
+        page: 1,
+        line: line({ line_type: lineType, line_parts: lineParts }),
+        acts: [act(1)],
+        scenes: [scene(1, 1)],
+        characters: [],
+        characterGroups: [],
+        previousLine: null,
+        nextLine: null,
+        stageDirectionStyles: [],
+      },
+      global: { stubs },
+    });
+  }
+
+  describe.each([
+    ['cue', LINE_TYPES.CUE_LINE],
+    ['spacing', LINE_TYPES.SPACING],
+  ])('a %s line, which has no text input to hold focus', (_name, lineType) => {
+    it('focuses the row itself, so Up/Down/Esc keep working', async () => {
+      wrapper = mountAttached(lineType);
+      await flushPromises();
+
+      const row = wrapper.find('.line-editor-card');
+      expect(document.activeElement).toBe(row.element);
+
+      await row.trigger('keydown.up');
+      await row.trigger('keydown.down');
+      expect(wrapper.emitted('navigateUp')).toHaveLength(1);
+      expect(wrapper.emitted('navigateDown')).toHaveLength(1);
+    });
+
+    it('closes on Esc from the focused row', async () => {
+      wrapper = mountAttached(lineType);
+      await flushPromises();
+
+      await wrapper.find('.line-editor-card').trigger('keydown.esc');
+
+      expect(wrapper.emitted('doneEditing')).toHaveLength(1);
+    });
+
+    it('prevents the arrow keys’ default scroll while navigating from the row', async () => {
+      wrapper = mountAttached(lineType);
+      await flushPromises();
+      const event = new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        cancelable: true,
+        bubbles: true,
+      });
+
+      wrapper.find('.line-editor-card').element.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+    });
+  });
+
+  it.each([
+    ['dialogue', LINE_TYPES.DIALOGUE],
+    ['stage direction', LINE_TYPES.STAGE_DIRECTION],
+  ])(
+    'does not focus the row for a %s line, whose text input takes focus instead',
+    async (_n, lineType) => {
+      wrapper = mountAttached(lineType, line().line_parts);
+      await flushPromises();
+
+      expect(document.activeElement).not.toBe(wrapper.find('.line-editor-card').element);
+    }
+  );
+
+  it('ignores arrow keys bubbling up from an inner element (.self), leaving them to that element', async () => {
+    wrapper = mountAttached(LINE_TYPES.DIALOGUE, line().line_parts);
+    await flushPromises();
+
+    await wrapper.find('button').trigger('keydown.up');
+
+    expect(wrapper.emitted('navigateUp')).toBeUndefined();
   });
 
   describe('remote-editors badge (Phase 4 Step C)', () => {

@@ -289,7 +289,10 @@ function getBarHeight(micCount: number): number {
   border-radius: 4px;
   border: 1px solid #212529;
   cursor: default;
-  transition: all 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -299,6 +302,12 @@ function getBarHeight(micCount: number): number {
   opacity: 0.8;
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-bar {
+    transition: none;
+  }
 }
 
 .mic-count {

@@ -28,6 +28,7 @@ import {
   addDialogueLine,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -149,7 +150,7 @@ async function enableCollabEditingViaUI(p: Page): Promise<void> {
 }
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await enableCollabEditingViaUI(page);
@@ -248,6 +249,7 @@ test('cut mode: toggling a line part requires Save Cuts, exclusive with editing'
   const cutLinePart = firstRow(page).locator('.viewable-line-cut').first();
   await cutLinePart.click();
   await expect(saveCutsButton).toBeEnabled();
+  await docShot(page, 'config_show/script_collab_cut_mode');
   await saveCutsButton.click();
   await expect(page.locator('.v-toast__item:has-text("Saved script cuts")').first()).toBeVisible({
     timeout: 10_000,
@@ -283,7 +285,7 @@ test('Edit opens the shared draft and its lines appear', async () => {
 test('a non-editing viewer sees the live draft, not stale saved content (Phase 4 Step A)', async ({
   browser,
 }) => {
-  ctx4 = await browser.newContext();
+  ctx4 = await newContext(browser);
   const page4 = await ctx4.newPage();
   await loginAsAdmin(page4);
   await openScriptEditor(page4);
@@ -310,7 +312,7 @@ test('Cuts is proactively disabled, with a reason, while someone is editing', as
   // A disposable third context — unlike ctx2, nothing later in this file depends on it.
   // The button is disabled client-side before any request is sent (cutsDisabledReason),
   // so this cannot be proven by clicking past it and catching a server rejection.
-  const ctx3 = await browser.newContext();
+  const ctx3 = await newContext(browser);
   const page3 = await ctx3.newPage();
   await loginAsAdmin(page3);
   await openScriptEditor(page3);
@@ -380,7 +382,7 @@ test('reloading while editing keeps editor status and the same draft', async () 
 });
 
 test('a second browser can edit the same script at the same time', async ({ browser }) => {
-  ctx2 = await browser.newContext();
+  ctx2 = await newContext(browser);
   const page2 = await ctx2.newPage();
   await loginAsAdmin(page2);
   await openScriptEditor(page2);
@@ -423,8 +425,9 @@ test('a second browser can edit the same script at the same time', async ({ brow
   await expect(otherEditorRow2).toContainText('admin');
   // Every non-self row offers "Jump to" once its awareness has arrived.
   await expect(otherEditorRow).toContainText('Jump to');
-  await page.waitForTimeout(200); // let the dropdown's fade-in transition finish
-  await page.screenshot({ path: '../docs/images/config_show/script_collab_editing.png' });
+  // Let the dropdown's fade-in transition finish before the screenshot.
+  await expect(page.locator('.presence-menu.show').first()).toHaveCSS('opacity', '1');
+  await docShot(page, 'config_show/script_collab_editing');
 
   // "Jump to" on the other editor's row switches to whatever page they're on.
   await page2.click('button:has-text("Next Page")');
@@ -444,7 +447,7 @@ test('a second browser can edit the same script at the same time', async ({ brow
   const markerEditor1 = await openMarkerLine(page2, marker1);
   const markerEditor2 = await openMarkerLine(page, marker2);
   await expectRemoteBadge(page, marker1);
-  await page.screenshot({ path: '../docs/images/config_show/script_collab_line_badge.png' });
+  await docShot(page, 'config_show/script_collab_line_badge');
   await expectRemoteBadge(page2, marker2);
   await closeMarkerLine(markerEditor1, page, marker1);
   await closeMarkerLine(markerEditor2, page2, marker2);
@@ -528,11 +531,11 @@ test('inserts a line from the add-line divider and deletes it again', async () =
 
   await fillOpenLineEditor(page, { act: 'Act 1', scene: 'Scene 1' });
 
-  // Unscoped, like the classic editor's own equivalent E2E test: `div.row` nests
-  // (Bootstrap grid), so the "has a Done button" filter's first match can be an
-  // ancestor row that also wraps the (hidden) Stage Direction Styles tab's own Delete
-  // Line button, making a *scoped* lookup inside it ambiguous.
-  await page.locator('button.btn-danger:has-text("Delete Line")').first().click();
+  // Scoped to `.line-editor-card` (the open line's own card) rather than a `div.row`
+  // filter: `div.row` nests (Bootstrap grid), so its first "has a Done button" match can
+  // be an ancestor that also wraps the hidden Stage Direction Styles tab's own Delete
+  // Line button.
+  await page.locator('.line-editor-card').getByRole('button', { name: 'Delete Line' }).click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
   await expect(page.locator('.script-line-row')).toHaveCount(rowCountBefore);
 
@@ -541,8 +544,37 @@ test('inserts a line from the add-line divider and deletes it again', async () =
     .filter({ hasText: 'A second line, so a divider exists' });
   await secondRow.hover();
   await secondRow.locator('.line-edit-trigger').click();
-  await page.locator('button.btn-danger:has-text("Delete Line")').first().click();
+  await page.locator('.line-editor-card').getByRole('button', { name: 'Delete Line' }).click();
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
+});
+
+test('Up/Down and Esc keep working on a Cue line, which has no text input to hold focus (#1545)', async () => {
+  const card = page.locator('.line-editor-card');
+  const rowCountBefore = await page.locator('.script-line-row').count();
+
+  await page.click('button:has-text("Add Cue")');
+  // A cue line has no text input, so the card itself takes focus; without that, focus
+  // fell to <body> and none of the keys below did anything.
+  await expect(card).toBeFocused({ timeout: 5_000 });
+
+  // Up opens the line above (a dialogue line, whose text input takes focus)...
+  await page.keyboard.press('ArrowUp');
+  await expect(card.locator('input[type="text"]:visible')).toBeVisible({ timeout: 5_000 });
+  // ...and Down comes back to the cue line, focusing its card again.
+  await page.keyboard.press('ArrowDown');
+  await expect(card).toBeFocused({ timeout: 5_000 });
+
+  // Esc closes the (valid) cue line from the focused card.
+  await page.keyboard.press('Escape');
+  await expect(card).toHaveCount(0, { timeout: 5_000 });
+
+  // Leave the draft as later tests expect it: remove the cue line again.
+  const cueRow = page.locator('.script-line-row').last();
+  await cueRow.hover();
+  await cueRow.locator('.line-edit-trigger').click();
+  await card.getByRole('button', { name: 'Delete Line' }).click();
+  await expect(card).toHaveCount(0, { timeout: 5_000 });
+  await expect(page.locator('.script-line-row')).toHaveCount(rowCountBefore);
 });
 
 test('Save commits the draft to the DB, not just the shared draft', async () => {
@@ -588,10 +620,14 @@ test('typing again after a save makes Stop Editing offer Keep Draft / Discard', 
 
   await stopEditing(page).click();
   await waitForModal(page, 'Stop Editing');
+  await docShot(page, 'config_show/script_collab_stop_editing_modal');
   await page.click('.modal.show button:has-text("Keep Draft")');
   await waitForModalClosed(page);
 
   await expect(editButton(page)).toBeVisible({ timeout: 10_000 });
+  // Out of the draft but it is still unsaved: the indicator tells everyone, editor or not.
+  await expect(page.locator('text=Unsaved draft').first()).toBeVisible({ timeout: 10_000 });
+  await docShot(page, 'config_show/script_collab_unsaved_draft');
 });
 
 test('the Revisions page blocks New Revision and offers Discard while the draft is unsaved', async () => {
@@ -601,6 +637,18 @@ test('the Revisions page blocks New Revision and offers Discard while the draft 
   await expect(page.locator('button:has-text("New Revision")')).toBeDisabled({ timeout: 10_000 });
   await expect(page.getByRole('button', { name: 'Discard Draft', exact: true })).toBeVisible({
     timeout: 10_000,
+  });
+  await docShot(page, 'config_show/script_collab_discard_draft_banner', {
+    fixText: [
+      {
+        locator: page.locator('.tab-pane.active table tbody tr td:nth-child(3)'),
+        text: '2025-01-06T09:30:12.104744',
+      },
+      {
+        locator: page.locator('.tab-pane.active table tbody tr td:nth-child(4)'),
+        text: '2025-01-06T09:41:37.416321',
+      },
+    ],
   });
 
   // Don't actually discard here — the next test needs this kept draft to still exist.
@@ -631,12 +679,14 @@ test('Set Character or Group applies a character across the selected lines', asy
   await row.hover();
   await row.getByRole('checkbox').click();
   await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+  // Docs screenshot (docs/pages/script_config.md, "Selecting Several Lines"): the
+  // selection bar, which script_collab_editing.png doesn't show.
+  await page.getByRole('toolbar', { name: 'Selected lines' }).scrollIntoViewIfNeeded();
+  await docShot(page, 'config_show/script_collab_selection_bar');
 
   await page.click('button:has-text("Set Character or Group")');
   await waitForModal(page, 'Set Character or Group');
-  await page.locator('.modal.show select').filter({ hasText: 'Alice' }).selectOption({
-    label: 'Alice',
-  });
+  await page.getByTestId('set-character-select').selectOption({ label: 'Alice' });
   await confirmModal(page);
   await waitForModalClosed(page);
 
@@ -673,7 +723,7 @@ test('Discard, triggered from the Revisions page, reverts the draft and closes t
   // (rather than navigating one of them away first) so the server's demote-every-
   // client-still-in-the-room logic has both of them to clear, exactly like the
   // earlier (never-exercised) in-editor Discard path did.
-  const ctx3 = await browser.newContext();
+  const ctx3 = await newContext(browser);
   const page3 = await ctx3.newPage();
   await loginAsAdmin(page3);
   await page3.goto(`${UI_BASE}/show-config/script-revisions`);
@@ -750,7 +800,7 @@ test('a stalled save surfaces an error, not a stuck spinner (#1522)', async ({ b
   // Its own context: the WS route below must be installed before the socket
   // opens, which happens on this page's first navigation — too late to set up
   // on a page that already exists.
-  const ctx5 = await browser.newContext();
+  const ctx5 = await newContext(browser);
   const page5 = await ctx5.newPage();
 
   // Drop the client's SAVE_SCRIPT_DRAFT outbound, forwarding everything else

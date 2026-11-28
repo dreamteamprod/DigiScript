@@ -19,7 +19,7 @@ export function expandWholeRange(from: string, to: string): string[] | null {
 
 /** The live view's single-field range syntax: "5 > 10". */
 export function parseRangeText(input: string): string[] | null {
-  const match = input.trim().match(/^(\d+)\s*>\s*(\d+)$/);
+  const match = /^(\d+)\s*>\s*(\d+)$/.exec(input.trim());
   if (!match) return null;
   return expandWholeRange(match[1], match[2]);
 }

@@ -11,8 +11,10 @@ import {
   confirmModal,
   waitForModalClosed,
   confirmDialog,
+  selectLines,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -22,7 +24,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config/script`);
@@ -37,6 +39,7 @@ test.afterAll(async () => {
 
 test('script editor shows page navigation controls', async () => {
   await expect(page.locator('button:has-text("Go to Page")')).toBeVisible({ timeout: 15_000 });
+  await docShot(page, 'config_show/script_empty');
 });
 
 test('Edit button is visible for admin', async () => {
@@ -63,12 +66,32 @@ test('adds a dialogue line', async () => {
   await page.click('button:has-text("Add Dialogue")');
   // A ScriptLineEditor row appears with Done/Delete buttons
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/script_dialogue_line_editing');
+  await page.locator('button:has-text("Delete Line")').first().click();
+  await expect(page.locator('button:has-text("Done")')).toHaveCount(0);
 });
 
 test('adds a stage direction via the add-to-end-of-page footer', async () => {
   await page.click('button:has-text("Add Direction")');
-  // At least two Done buttons are now visible (one per open editor)
   await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/script_stage_direction_editing');
+  await page.locator('button:has-text("Delete Line")').first().click();
+  await expect(page.locator('button:has-text("Done")')).toHaveCount(0);
+});
+
+test('adds a cue line', async () => {
+  await page.click('button:has-text("Add Cue")');
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/script_cue_line_editing');
+  await page.locator('button:has-text("Delete Line")').first().click();
+  await expect(page.locator('button:has-text("Done")')).toHaveCount(0);
+});
+
+test('adds a spacing line', async () => {
+  await page.click('button:has-text("Add Gap")');
+  await expect(page.locator('button:has-text("Done")').first()).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_show/script_spacing_line_editing');
+  // Left open: the next test stops editing with an unsaved change and must be asked to confirm.
 });
 
 test('stops editing without saving', async () => {
@@ -163,12 +186,70 @@ test('clicking "Click to edit" on an existing saved line reopens it in place', a
   );
 
   // Esc closes it again without changing anything (same as Done, but no save needed
-  // here since nothing was edited).
+  // here since nothing was edited). The input takes focus a frame after mounting, so
+  // wait for that first — a page-level Esc sent earlier lands on <body> and does nothing.
+  await expect(page.locator('input[type="text"]:visible').last()).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.locator('button:has-text("Done")')).not.toBeVisible({ timeout: 5_000 });
   await expect(
     page.locator('.viewable-line').filter({ hasText: 'That is the question' })
   ).toBeVisible();
+});
+
+// ── Keyboard flow (Design E) ────────────────────────────────────────────────
+
+test('ArrowUp / ArrowDown move the open editor between lines, and Shift+Tab reaches the character select', async () => {
+  const openInput = () => page.locator('.line-editor-card input[type="text"]:visible');
+  const secondRow = page.locator('.script-line-row').filter({ hasText: 'That is the question' });
+  await secondRow.locator('.line-edit-trigger').click();
+  await expect(openInput()).toHaveValue('That is the question', { timeout: 5_000 });
+
+  // Up closes this line and opens the one above it — one editor open at a time.
+  await openInput().press('ArrowUp');
+  await expect(openInput()).toHaveValue('To be or not to be', { timeout: 5_000 });
+  await expect(page.locator('.line-editor-card')).toHaveCount(1);
+
+  await openInput().press('ArrowDown');
+  await expect(openInput()).toHaveValue('That is the question', { timeout: 5_000 });
+  await expect(page.locator('.line-editor-card')).toHaveCount(1);
+
+  // Shift+Tab goes back from the text field to the character select before it. Wait for
+  // the freshly opened card's own deferred autofocus to land first, or it can steal focus
+  // back to the text field after the keypress.
+  await expect(openInput()).toBeFocused();
+  await openInput().press('Shift+Tab');
+  await expect(page.locator('.line-editor-card select:focus')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.line-editor-card')).toHaveCount(0, { timeout: 5_000 });
+});
+
+test('Esc and Enter leave an invalid line open instead of closing it', async () => {
+  await page.click('button:has-text("Add Dialogue")');
+  const card = page.locator('.line-editor-card');
+  await expect(card).toHaveCount(1, { timeout: 5_000 });
+
+  // A fresh dialogue line has no text or speaker yet, so it is invalid — and Done is
+  // disabled while it is, which proves the premise rather than assuming it.
+  await expect(card.getByRole('button', { name: 'Done' })).toBeDisabled();
+  const input = card.locator('input[type="text"]:visible');
+
+  // A bare count check right after the keypress would pass before a (buggy) close had
+  // any chance to run, so let the key handler and Vue's re-render finish first.
+  const settle = () =>
+    page.evaluate(
+      () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+    );
+  await input.press('Enter');
+  await settle();
+  await expect(card).toHaveCount(1);
+  await input.press('Escape');
+  await settle();
+  await expect(card).toHaveCount(1);
+
+  // Scoped to the card: an unscoped `.first()` can hit another Delete Line button.
+  await card.getByRole('button', { name: 'Delete Line' }).click();
+  await expect(card).toHaveCount(0, { timeout: 5_000 });
 });
 
 // ── Selection bar (Design E) ────────────────────────────────────────────────
@@ -224,6 +305,7 @@ test('clicking the range’s own start line shrinks it, keeping the rest selecte
   const secondLineRow = page
     .locator('.script-line-row')
     .filter({ hasText: 'That is the question' });
+  await selectLines(page, ['To be or not to be', 'That is the question']);
 
   await firstLineRow.hover();
   await firstLineRow.getByRole('checkbox').click();
@@ -231,23 +313,17 @@ test('clicking the range’s own start line shrinks it, keeping the rest selecte
   await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
   await expect(firstLineRow.getByRole('checkbox')).not.toBeChecked();
   await expect(secondLineRow.getByRole('checkbox')).toBeChecked();
-
-  // Restore the 2-line range — the next test assumes it's already selected.
-  await firstLineRow.hover();
-  await firstLineRow.getByRole('checkbox').click();
-  await expect(page.locator('text=2 lines selected')).toBeVisible({ timeout: 5_000 });
 });
 
 test('Set Character or Group changes the selected lines’ speaker', async () => {
   const firstLineRow = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
+  await selectLines(page, ['To be or not to be', 'That is the question']);
 
   await page.click('button:has-text("Set Character or Group")');
   await waitForModal(page, 'Set Character or Group');
   // Alice — a different character from Hamlet (who is already assigned) so the
   // apply produces a real change that scriptChanges can detect via deep equality.
-  await page.locator('.modal.show select').filter({ hasText: 'Alice' }).selectOption({
-    label: 'Alice',
-  });
+  await page.getByTestId('set-character-select').selectOption({ label: 'Alice' });
   await confirmModal(page);
   await waitForModalClosed(page);
 
@@ -267,10 +343,48 @@ test('Set Character or Group changes the selected lines’ speaker', async () =>
   });
 });
 
+test('Space on a focused line checkbox toggles the selection', async () => {
+  await selectLines(page, ['To be or not to be']);
+  await page.getByRole('button', { name: 'Clear Selection' }).click();
+
+  const checkbox = page
+    .locator('.script-line-row')
+    .filter({ hasText: 'To be or not to be' })
+    .getByRole('checkbox');
+  await checkbox.focus();
+  await page.keyboard.press('Space');
+  await expect(page.locator('text=1 line selected')).toBeVisible({ timeout: 5_000 });
+  await expect(checkbox).toBeChecked();
+
+  await page.keyboard.press('Space');
+  await expect(page.getByRole('toolbar', { name: 'Selected lines' })).toBeHidden({
+    timeout: 5_000,
+  });
+});
+
+test('Move to Scene applies the chosen act and scene to the selection and clears it', async () => {
+  // Only Act 1 / Scene 1 exist by this point in the serial suite (spec 05 deletes the
+  // others), so the move can't change a visible label — this covers the flow: the modal
+  // opens, offers the act/scene, applies, closes, and the selection clears.
+  await selectLines(page, ['To be or not to be', 'That is the question']);
+
+  await page.click('button:has-text("Move to Scene")');
+  await waitForModal(page, 'Move to Scene');
+  await page.getByTestId('bulk-act-select').selectOption({ label: 'Act 1' });
+  await page.getByTestId('bulk-scene-select').selectOption({ label: 'Scene 1' });
+  await confirmModal(page);
+  await waitForModalClosed(page);
+
+  await expect(page.getByRole('toolbar', { name: 'Selected lines' })).toBeHidden({
+    timeout: 5_000,
+  });
+  await expect(
+    page.locator('.viewable-line').filter({ hasText: 'To be or not to be' })
+  ).toBeVisible();
+});
+
 test('Clear Selection removes the selection bar', async () => {
-  const row = page.locator('.script-line-row').filter({ hasText: 'To be or not to be' });
-  await row.hover();
-  await row.getByRole('checkbox').click();
+  await selectLines(page, ['To be or not to be']);
   await expect(page.locator('button:has-text("Clear Selection")')).toBeVisible({
     timeout: 5_000,
   });
@@ -279,6 +393,22 @@ test('Clear Selection removes the selection bar', async () => {
   await expect(page.locator('button:has-text("Clear Selection")')).not.toBeVisible({
     timeout: 3_000,
   });
+});
+
+// Last in the selection block: it deletes lines from the unsaved edit, and ends the
+// editing session, discarding that — so later specs still find the saved script intact.
+test('Delete N Lines removes the whole selection', async () => {
+  await selectLines(page, ['To be or not to be', 'That is the question']);
+
+  await page.getByRole('button', { name: 'Delete 2 Lines' }).click();
+
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: 'To be or not to be' })
+  ).toHaveCount(0, { timeout: 5_000 });
+  await expect(
+    page.locator('.script-line-row').filter({ hasText: 'That is the question' })
+  ).toHaveCount(0);
+  await expect(page.getByRole('toolbar', { name: 'Selected lines' })).toBeHidden();
 
   await page.click('button:has-text("Stop Editing")');
   await confirmDialog(page);
@@ -334,6 +464,7 @@ test('stops cut mode without blank-page flash', async () => {
   ).toBeVisible();
   // No edit controls are shown after stopping
   await expect(page.locator('.line-edit-trigger')).toHaveCount(0);
+  await docShot(page, 'config_show/script_view_mode');
 });
 
 test('cut styling persists after re-entering cut mode', async () => {
@@ -394,7 +525,6 @@ test('navigates to Script Cues with saved script content', async () => {
   await expect(
     page.locator('.viewable-line').filter({ hasText: 'To be or not to be' }).first()
   ).toBeVisible({ timeout: 10_000 });
-  await page.screenshot({ path: '../docs/images/config_show/cue_configuration_empty.png' });
 });
 
 test('"+ Cue" opens a card with the first free number suggested', async () => {
@@ -406,7 +536,7 @@ test('"+ Cue" opens a card with the first free number suggested', async () => {
   // While the card is open that line's button says so and cannot be used again.
   await expect(page.locator('.add-cue-btn').first()).toHaveText('Adding…');
   await expect(page.locator('.add-cue-btn').first()).toBeDisabled();
-  await page.screenshot({ path: '../docs/images/config_show/cue_add_card.png' });
+  await docShot(page, 'config_show/cue_add_card');
 });
 
 test('adds a cue with the keyboard alone and focus returns to "+ Cue"', async () => {
@@ -456,14 +586,14 @@ test('edits a cue number using Enter in the card', async () => {
   await expect(card).not.toBeVisible({ timeout: 5_000 });
   await expect(realCues()).toHaveCount(2, { timeout: 5_000 });
   await expect(realCues().last()).toHaveText('LX 004');
-  await page.screenshot({ path: '../docs/images/config_show/cue_configuration_with_cues.png' });
+  await docShot(page, 'config_show/cue_configuration_with_cues');
 });
 
 test('Find offers close matches when there is no exact one', async () => {
   await findBox().fill('LX 005');
   await findBox().press('Enter');
   await expect(page.getByText('No LX 005 yet. Did you mean:')).toBeVisible({ timeout: 5_000 });
-  await page.screenshot({ path: '../docs/images/config_show/cue_find.png' });
+  await docShot(page, 'config_show/cue_find');
   await findBox().press('Escape');
   await expect(page.getByText('No LX 005 yet. Did you mean:')).not.toBeVisible();
 });
@@ -531,7 +661,7 @@ test('adds the range 1 to 5 and shows five cues', async () => {
   await addGroupCard().getByRole('button', { name: 'Add Range' }).click();
   await expect(addGroupCard().locator('.member-input')).toHaveCount(5, { timeout: 3_000 });
   await expect(addGroupCard().getByRole('button', { name: 'Add Group of 5' })).toBeVisible();
-  await page.screenshot({ path: '../docs/images/config_show/cue_group_card.png' });
+  await docShot(page, 'config_show/cue_group_card');
 });
 
 test('saves the group and shows a dashed group button with the range label', async () => {
@@ -618,6 +748,7 @@ test('remove button appears when a second part is added', async () => {
 
   // One remove button per part
   await expect(lineEditor.locator('button.btn-outline-danger')).toHaveCount(2, { timeout: 3_000 });
+  await docShot(page, 'config_show/script_multi_part_dialogue_full_mode');
 });
 
 test('clicking remove reduces to single part and hides the remove button', async () => {

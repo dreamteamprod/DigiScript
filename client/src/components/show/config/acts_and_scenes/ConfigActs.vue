@@ -196,7 +196,7 @@ const noActLoops = helpers.withMessage(
     const visited = new Set<number>();
     visited.add(editFormState.value.id ?? -1);
     let current = showStore.actById(value);
-    while (current != null && current.previous_act != null) {
+    while (current?.previous_act != null) {
       if (visited.has(current.previous_act)) return false;
       current = showStore.actById(current.previous_act);
     }

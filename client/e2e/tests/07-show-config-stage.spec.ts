@@ -13,6 +13,8 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
+import { ShowApi, seedStagePlan, removeStagePlan, type StagePlan } from '../seed.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -22,7 +24,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config/stage`);
@@ -40,6 +42,7 @@ test('Props tab is visible', async () => {
   await expect(
     page.locator('button:has-text("New Prop Type"), button:has-text("New Type")')
   ).toBeVisible();
+  await docShot(page, 'config_show/stage_props_empty');
 });
 
 test('creates a prop type', async () => {
@@ -69,6 +72,7 @@ test('switches to Scenery tab', async () => {
   await expect(
     page.locator('button:has-text("New Scenery Type"), button:has-text("New Type")')
   ).toBeVisible();
+  await docShot(page, 'config_show/stage_scenery_empty');
 });
 
 test('creates a scenery type', async () => {
@@ -110,6 +114,7 @@ test('deletes the scenery type', async () => {
 test('switches to Crew tab', async () => {
   await page.click('.nav-link:has-text("Crew"), button[role="tab"]:has-text("Crew")');
   await expect(page.locator('button:has-text("New Crew Member")')).toBeVisible();
+  await docShot(page, 'config_show/stage_crew_empty');
 });
 
 test('creates a crew member', async () => {
@@ -137,6 +142,7 @@ test('switches to Stage Manager tab and shows scene navigation', async () => {
   );
   // Shows Prev/Next scene buttons
   await expect(page.locator('button:has-text("Next")').first()).toBeVisible();
+  await docShot(page, 'config_show/stage_manager_empty');
 });
 
 test('adds a prop allocation to the current scene', async () => {
@@ -178,4 +184,92 @@ test('deletes the prop type', async () => {
   await row.locator('button:has-text("Delete")').click();
   await confirmDialog(page);
   await expect(page.locator('td:has-text("Furniture")')).not.toBeVisible({ timeout: 5_000 });
+});
+
+// ── Populated stage plan (also the source of the stage documentation screenshots) ──────────
+//
+// Seeded over the API (building this through the UI would repeat everything above; see
+// seedStagePlan for the layout), then exercised and photographed through the UI, and removed
+// again so later specs are unaffected.
+
+let stagePlan: StagePlan;
+
+test('seeds a populated stage plan', async ({ request }) => {
+  stagePlan = await seedStagePlan(await ShowApi.asAdmin(request));
+  expect(stagePlan.propIds).toHaveLength(2);
+  expect(stagePlan.crewIds).toHaveLength(2);
+  expect(stagePlan.sceneIds).toHaveLength(2);
+  await page.goto(`${UI_BASE}/show-config/stage`);
+  await waitForAppReady(page);
+});
+
+test('Crew, Scenery and Props lists show the seeded data', async () => {
+  await expect(page.locator('.tab-pane.active td:has-text("Alice")')).toBeVisible();
+  await docShot(page, 'config_show/stage_crew_with_data');
+
+  await page.click('.nav-link:has-text("Scenery"), button[role="tab"]:has-text("Scenery")');
+  await expect(page.locator('.tab-pane.active td:has-text("Castle Wall")')).toBeVisible();
+  await docShot(page, 'config_show/stage_scenery_with_data');
+
+  await page.click('.nav-link:has-text("Props"), button[role="tab"]:has-text("Props")');
+  await expect(page.locator('.tab-pane.active td:has-text("Chair")')).toBeVisible();
+  await docShot(page, 'config_show/stage_props_with_data');
+});
+
+test('Stage Manager shows the scene allocations and SET crew assignments', async () => {
+  await page.click(
+    '.nav-link:has-text("Stage Manager"), button[role="tab"]:has-text("Stage Manager")'
+  );
+  const active = page.locator('.tab-pane.active');
+  await expect(active.locator('td:has-text("Chair")').first()).toBeVisible();
+  await expect(active.locator('td:has-text("Castle Wall")').first()).toBeVisible();
+  await docShot(page, 'config_show/stage_manager_with_allocations');
+
+  // Both blocks start in Scene 1, so the SET card lists Chair (Alice) and Castle Wall (Bob).
+  await active.locator('.section-card-header:has-text("SET")').click();
+  await expect(active.locator('.crew-badge').first()).toBeVisible();
+  await docShot(page, 'config_show/stage_manager_crew_assignments');
+});
+
+test('removing a boundary allocation warns about the crew assignments it would drop', async () => {
+  const chairRow = page
+    .locator('.tab-pane.active .section-card:has-text("Allocations") tr')
+    .filter({ has: page.locator('td:has-text("Chair")') });
+  await chairRow.locator('button:has-text("Delete")').click();
+  await waitForModal(page, 'Crew assignments will be removed');
+  await docShot(page, 'config_show/stage_allocation_warning');
+  await page.locator('.modal.show .modal-footer button.btn-secondary').click();
+  await waitForModalClosed(page);
+  await expect(chairRow).toBeVisible();
+});
+
+test('Timeline shows the allocations, and a bar opens the crew side panel', async () => {
+  await page.click('.nav-link:has-text("Timeline"), button[role="tab"]:has-text("Timeline")');
+  const bar = page.locator('.tab-pane.active .allocation-bar').first();
+  await expect(bar).toBeVisible({ timeout: 10_000 });
+  await docShot(page, 'config_show/stage_timeline');
+
+  await bar.click();
+  await expect(page.locator('.side-panel.open')).toBeVisible();
+  await docShot(page, 'config_show/stage_timeline_side_panel');
+});
+
+test('Crew timeline lists each crew member with their SET and STRIKE assignments', async () => {
+  await page
+    .locator('.tab-pane.active .nav-link')
+    .filter({ hasText: /^Crew$/ })
+    .click();
+  await expect(page.locator('.tab-pane.active .assignment-bar').first()).toBeVisible({
+    timeout: 10_000,
+  });
+  await docShot(page, 'config_show/stage_crew_timeline');
+});
+
+test('removes the seeded stage plan', async ({ request }) => {
+  const api = await ShowApi.asAdmin(request);
+  await removeStagePlan(api, stagePlan);
+  const { crew } = await api.get<{ crew: Array<{ first_name: string }> }>('show/stage/crew');
+  expect(crew.map((c) => c.first_name)).not.toContain('Alice');
+  const { props } = await api.get<{ props: Array<{ name: string }> }>('show/stage/props');
+  expect(props.map((p) => p.name)).not.toContain('Chair');
 });

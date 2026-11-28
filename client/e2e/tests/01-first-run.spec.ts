@@ -6,6 +6,7 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { UI_BASE, ADMIN_PASSWORD, waitForAppReady } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -15,7 +16,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
 });
 
@@ -28,6 +29,7 @@ test('shows the first-run admin creation form', async () => {
   await waitForAppReady(page);
   await expect(page.locator('h2')).toHaveText('Welcome to DigiScript');
   await expect(page.locator('text=To get started, please create an admin user!')).toBeVisible();
+  await docShot(page, 'getting_started/first_look');
 });
 
 test('form does not overflow the viewport on a wide screen', async () => {

@@ -13,6 +13,7 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -22,7 +23,7 @@ let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
   await page.goto(`${UI_BASE}/show-config/acts`);
@@ -37,6 +38,7 @@ test.afterAll(async () => {
 
 test('Acts tab is visible', async () => {
   await expect(page.locator('button:has-text("New Act")')).toBeVisible();
+  await docShot(page, 'config_show/acts_overview_empty');
 });
 
 test('creates Act 1', async () => {
@@ -55,6 +57,7 @@ test('creates Act 2', async () => {
   await confirmModal(page);
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("Act 2")').first()).toBeVisible();
+  await docShot(page, 'config_show/acts_overview');
 });
 
 test('edits Act 2 name', async () => {
@@ -81,6 +84,7 @@ test('deletes Act 2', async () => {
 test('switches to the Scenes sub-tab', async () => {
   await page.click('.nav-link:has-text("Scenes"), button[role="tab"]:has-text("Scenes")');
   await expect(page.locator('button:has-text("New Scene")')).toBeVisible();
+  await docShot(page, 'config_show/scenes_overview_empty');
 });
 
 test('creates Scene 1 in Act 1', async () => {
@@ -101,6 +105,7 @@ test('creates Scene 2 in Act 1', async () => {
   await confirmModal(page);
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("Scene 2")').first()).toBeVisible();
+  await docShot(page, 'config_show/scenes_overview');
 });
 
 test('edits Scene 2 name', async () => {

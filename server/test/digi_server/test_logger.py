@@ -137,7 +137,9 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
 
     def test_sys_excepthook_keeps_default_for_keyboard_interrupt(self):
         calls = []
-        sys.excepthook = lambda *a: calls.append(a)
+        self.enterContext(
+            mock.patch.object(sys, "excepthook", lambda *a: calls.append(a))
+        )
         install_exception_hooks()
         before = self._count("sys_excepthook")
         sys.excepthook(KeyboardInterrupt, KeyboardInterrupt(), None)
@@ -147,7 +149,7 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
 
     def test_thread_excepthook_logs_and_counts(self):
         # Replace pytest's own thread hook so it doesn't flag the intended crash.
-        threading.excepthook = lambda _args: None
+        self.enterContext(mock.patch.object(threading, "excepthook"))
         install_exception_hooks()
         before = self._count("thread")
 
@@ -242,8 +244,12 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
 
     def test_hooks_chain_to_preexisting_hooks(self):
         sys_calls, thread_calls = [], []
-        sys.excepthook = lambda *a: sys_calls.append(a)
-        threading.excepthook = thread_calls.append
+        self.enterContext(
+            mock.patch.object(sys, "excepthook", lambda *a: sys_calls.append(a))
+        )
+        self.enterContext(
+            mock.patch.object(threading, "excepthook", thread_calls.append)
+        )
         install_exception_hooks()
         try:
             raise ValueError("chain-sys")
@@ -279,8 +285,8 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
 
         sentinel_sys = lambda *_a: None  # noqa: E731
         sentinel_thread = lambda _a: None  # noqa: E731
-        sys.excepthook = sentinel_sys
-        threading.excepthook = sentinel_thread
+        self.enterContext(mock.patch.object(sys, "excepthook", sentinel_sys))
+        self.enterContext(mock.patch.object(threading, "excepthook", sentinel_thread))
         barrier = threading.Barrier(4)
 
         def run():
@@ -308,6 +314,10 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
         def later_thread(_a):
             pass
 
+        # Assigned directly (not mock.patch) on purpose: these must land *after*
+        # install_exception_hooks(), and tearDown is the sole restorer of the
+        # global hooks - a patch cleanup would run after tearDown and re-leak
+        # the installed wrapper into later tests on this xdist worker.
         sys.excepthook = later_sys
         threading.excepthook = later_thread
         uninstall_exception_hooks()
@@ -327,7 +337,9 @@ class TestExceptionHooks(unittest.IsolatedAsyncioTestCase):
 
     def test_keyboard_interrupt_does_not_recurse_after_reinstall(self):
         calls = []
-        sys.excepthook = lambda *a: calls.append(a)
+        self.enterContext(
+            mock.patch.object(sys, "excepthook", lambda *a: calls.append(a))
+        )
         install_exception_hooks()
         install_exception_hooks()
         sys.excepthook(KeyboardInterrupt, KeyboardInterrupt(), None)
