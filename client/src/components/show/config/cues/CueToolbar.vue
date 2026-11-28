@@ -30,7 +30,7 @@
 
     <div class="cue-toolbar-filter">
       <span class="cue-toolbar-caption">Show cues</span>
-      <div class="filter-group" role="group" aria-label="Show cue types">
+      <fieldset class="filter-group" aria-label="Show cue types">
         <button
           type="button"
           class="filter-btn"
@@ -52,7 +52,7 @@
           <span class="swatch" :style="{ background: typeColour(type.id) }" aria-hidden="true" />
           {{ type.prefix }}
         </button>
-      </div>
+      </fieldset>
       <span class="flex-fill" />
       <span class="cue-toolbar-caption">Cue changes save straight away</span>
     </div>

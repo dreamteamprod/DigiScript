@@ -20,7 +20,7 @@
     <div class="cue-card-head">
       <b>{{ mode === 'add' ? 'Add a cue to this line' : `Edit ${editLabel}` }}</b>
       <span class="flex-fill" />
-      <div v-if="mode === 'add'" class="btn-group" role="group" aria-label="What to add">
+      <fieldset v-if="mode === 'add'" class="btn-group" aria-label="What to add">
         <button type="button" class="btn btn-sm btn-primary" aria-pressed="true">Single Cue</button>
         <button
           type="button"
@@ -31,7 +31,7 @@
         >
           Group of Cues
         </button>
-      </div>
+      </fieldset>
     </div>
 
     <div class="cue-card-section">
@@ -93,9 +93,15 @@
       </div>
     </div>
 
-    <div v-if="duplicate" class="cue-warn mt-2" role="status">
+    <output v-if="changedElsewhere" class="cue-warn d-block mt-2">
+      This cue was changed by someone else. Saving will replace their change.
+      <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="useTheirVersion">
+        Use Their Version
+      </button>
+    </output>
+    <output v-if="duplicate" class="cue-warn d-block mt-2">
       {{ duplicateText }}
-    </div>
+    </output>
     <div v-if="error" class="cue-error mt-2" role="alert">{{ error }}</div>
 
     <div class="cue-card-actions">
@@ -175,8 +181,6 @@ const emit = defineEmits<{
   /** A cue was added; `stay` is true for "Add and Stay Open". */
   added: [typeId: number, stay: boolean];
   'switch-group': [];
-  /** What this card was editing has been changed by someone else while it holds changes. */
-  stale: [];
   /** This card has its own change request in flight (so a reload it causes is not "someone else"). */
   busy: [value: boolean];
 }>();
@@ -280,8 +284,17 @@ const duplicateText = computed(() => {
 
 // ── The cue changed under us ────────────────────────────────────────────────
 
-// Someone else edited this cue while the card was open. Keep what the person has typed if they
-// have typed anything (and say so); otherwise show the new values so Save cannot send old ones.
+// Someone else edited this cue while the card was open. If nothing has been typed, show the new
+// values so Save cannot send old ones. If something has, keep it, say so on the card and let the
+// person choose: Save replaces the other change, or "Use Their Version" drops their own edits.
+const changedElsewhere = ref(false);
+
+function useTheirVersion(): void {
+  ident.value = props.cue?.ident ?? '';
+  editTypeId.value = props.cue?.cue_type_id ?? null;
+  changedElsewhere.value = false;
+}
+
 watch(
   () => [props.cue?.ident ?? '', props.cue?.cue_type_id ?? null] as const,
   ([newIdent, newType], [oldIdent, oldType]) => {
@@ -289,12 +302,8 @@ watch(
     // A reload hands over fresh objects; only an actual difference is someone else's edit.
     if (newIdent === oldIdent && newType === oldType) return;
     const edited = trimmedIdent.value !== oldIdent || editTypeId.value !== oldType;
-    if (edited) {
-      emit('stale');
-      return;
-    }
-    ident.value = newIdent;
-    editTypeId.value = newType;
+    if (edited) changedElsewhere.value = true;
+    else useTheirVersion();
   }
 );
 

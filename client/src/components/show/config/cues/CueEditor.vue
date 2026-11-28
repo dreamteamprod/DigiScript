@@ -27,14 +27,14 @@
         @jump="onJump"
       />
 
-      <div v-if="isLiveSession" class="cue-banner" role="status">
+      <output v-if="isLiveSession" class="cue-banner">
         A show is running. You can add cues, but editing and deleting cues is paused until the
         session ends.
-      </div>
-      <div v-if="!canAddCues" class="cue-banner" role="status">
+      </output>
+      <output v-if="!canAddCues" class="cue-banner">
         View only. You can look at cues but you do not have permission to change them.
-      </div>
-      <div v-if="notice" class="cue-banner" role="status">{{ notice }}</div>
+      </output>
+      <output v-if="notice" class="cue-banner">{{ notice }}</output>
 
       <BRow class="script-row cue-colhead">
         <BCol cols="3">Cues</BCol>
@@ -45,7 +45,7 @@
         <BCol cols="12">
           <template
             v-for="(line, index) in scriptStore.getScriptPage(currentEditPage)"
-            :key="`page_${currentEditPage}_line_${line.id ?? index}`"
+            :key="`page_${currentEditPage}_${line.id != null ? `id_${line.id}` : `idx_${index}`}`"
           >
             <ScriptLineCueEditor
               :line="line"
@@ -256,11 +256,7 @@ let activeLabel = '';
 
 function sameCard(a: ActiveCueCard | null, b: ActiveCueCard): boolean {
   return (
-    a != null &&
-    a.lineId === b.lineId &&
-    a.kind === b.kind &&
-    a.cueId === b.cueId &&
-    a.groupId === b.groupId
+    a?.lineId === b.lineId && a?.kind === b.kind && a?.cueId === b.cueId && a?.groupId === b.groupId
   );
 }
 
@@ -453,6 +449,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .cue-banner {
+  display: block;
   margin-top: 10px;
   padding: 10px 14px;
   border: 1px solid var(--bs-warning);

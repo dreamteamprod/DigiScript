@@ -432,7 +432,7 @@ describe('CueCard (changed elsewhere, logging and Enter)', () => {
     await w.setProps({ cue: cue(2, 1, '15') });
 
     expect(numberValue(w)).toBe('15');
-    expect(w.emitted('stale')).toBeUndefined();
+    expect(w.text()).not.toContain('changed by someone else');
   });
 
   it('follows a change of type too when nothing was edited', async () => {
@@ -448,7 +448,7 @@ describe('CueCard (changed elsewhere, logging and Enter)', () => {
     expect(checked?.text()).toContain('SND');
   });
 
-  it('says so, and keeps what was typed, when the cue changes under unsaved edits', async () => {
+  it('keeps what was typed, and warns on the card, when the cue changes under unsaved edits', async () => {
     setup();
     const w = mountEdit();
     await flushPromises();
@@ -456,8 +456,45 @@ describe('CueCard (changed elsewhere, logging and Enter)', () => {
 
     await w.setProps({ cue: cue(2, 1, '15') });
 
-    expect(w.emitted('stale')).toHaveLength(1);
     expect(numberValue(w)).toBe('99');
+    expect(w.find('output').text()).toContain(
+      'This cue was changed by someone else. Saving will replace their change.'
+    );
+    // The card stays open: nothing is closed or thrown away.
+    expect(w.emitted('done')).toBeUndefined();
+    expect(w.emitted('cancel')).toBeUndefined();
+    expect(buttonByText(w as never, 'Save Cue')!.attributes('disabled')).toBeUndefined();
+  });
+
+  it('"Use Their Version" drops the person\u2019s own edits and clears the warning', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('99');
+    await w.setProps({ cue: cue(2, 2, '15') });
+
+    await buttonByText(w as never, 'Use Their Version')!.trigger('click');
+
+    expect(numberValue(w)).toBe('15');
+    expect(w.text()).not.toContain('changed by someone else');
+    const checked = w
+      .findAll('[role="radio"]')
+      .find((r) => r.attributes('aria-checked') === 'true');
+    expect(checked?.text()).toContain('SND');
+  });
+
+  it('saves what was typed, replacing the other change, when the person chooses to', async () => {
+    const { scriptStore } = setup();
+    const edit = vi.spyOn(scriptStore, 'editCue').mockResolvedValue(true);
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('input.cue-number-input').setValue('99');
+    await w.setProps({ cue: cue(2, 1, '15') });
+
+    await buttonByText(w as never, 'Save Cue')!.trigger('click');
+    await flushPromises();
+
+    expect(edit).toHaveBeenCalledWith({ cueId: 2, cueType: 1, ident: '99', lineId: 103 });
   });
 
   it('does not treat a reload that changed nothing as someone else\u2019s edit', async () => {
@@ -468,7 +505,7 @@ describe('CueCard (changed elsewhere, logging and Enter)', () => {
 
     await w.setProps({ cue: cue(2, 1, '14') });
 
-    expect(w.emitted('stale')).toBeUndefined();
+    expect(w.text()).not.toContain('changed by someone else');
     expect(numberValue(w)).toBe('99');
   });
 
@@ -489,7 +526,7 @@ describe('CueCard (changed elsewhere, logging and Enter)', () => {
     release(true);
     await flushPromises();
 
-    expect(w.emitted('stale')).toBeUndefined();
+    expect(w.text()).not.toContain('changed by someone else');
     expect(w.emitted('done')).toHaveLength(1);
   });
 

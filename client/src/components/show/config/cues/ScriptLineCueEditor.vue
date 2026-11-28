@@ -192,7 +192,6 @@
             @cancel="emit('close-card')"
             @done="emit('close-card')"
             @busy="(value) => (cardBusy = value)"
-            @stale="emit('target-gone')"
           />
           <CueCard
             v-else-if="cardKind === 'view' && targetCue"
@@ -216,7 +215,6 @@
             @done="emit('close-card')"
             @dirty="(value) => emit('dirty', value)"
             @busy="(value) => (cardBusy = value)"
-            @stale="emit('target-gone')"
           />
         </BCol>
       </BRow>
@@ -514,7 +512,7 @@ function openCue(cue: Cue, event: Event): void {
 
 function openGroup(group: CueGroup, event: Event): void {
   const first = mergedCueSlots.value.find((s) => s.type === 'group' && s.group.id === group.id);
-  const sample = first && first.type === 'group' ? first.cues[0] : null;
+  const sample = first?.type === 'group' ? first.cues[0] : null;
   const kind = canWriteType(group.cue_type_id) && sample ? 'edit-group' : 'view';
   emit(
     'open',

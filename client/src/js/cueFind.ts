@@ -26,8 +26,9 @@ export function parseFindQuery(input: string, cueTypes: readonly CueType[]): Fin
   if (longest === 0) return { kind: 'needs-type', number: text };
 
   const types = cueTypes.filter((t) => {
-    const prefix = t.prefix?.trim().toLowerCase();
-    return prefix && prefix.length === longest && lower.startsWith(prefix);
+    const prefix = (t.prefix ?? '').trim().toLowerCase();
+    // `longest` is at least 1, so a blank prefix never matches.
+    return prefix.length === longest && lower.startsWith(prefix);
   });
   const number = text.slice(longest).trim();
   return number ? { kind: 'search', types, number } : { kind: 'needs-number', types };

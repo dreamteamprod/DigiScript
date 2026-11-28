@@ -418,7 +418,7 @@ describe('CueGroupCard (edit)', () => {
 
     const lists = w.findAll('.member-list');
     expect(lists).toHaveLength(1);
-    expect(lists[0].attributes('role')).toBe('group');
+    expect(lists[0].element.tagName).toBe('FIELDSET');
     expect(lists[0].attributes('aria-label')).toBe('Cues in this group');
     expect(w.findAll('.member-tile')).toHaveLength(100);
     expect(button(w, 'Add Group of 100')).toBeDefined();
@@ -470,12 +470,12 @@ describe('CueGroupCard (changed elsewhere, drag and drop, failures)', () => {
 
     expect(memberValues(w as never)).toEqual(['15', '16', '17', '18']);
     expect((w.find('input[maxlength="100"]').element as HTMLInputElement).value).toBe('Big storm');
-    expect(w.emitted('stale')).toBeUndefined();
+    expect(w.text()).not.toContain('changed by someone else');
     // The card's idea of "unchanged" moved with it.
     expect(w.emitted('dirty')?.at(-1)).toEqual([false]);
   });
 
-  it('says so, and keeps the edits, when the group changes under unsaved changes', async () => {
+  it('keeps the edits, and warns on the card, when the group changes under unsaved changes', async () => {
     setup();
     const w = mountEdit();
     await flushPromises();
@@ -483,8 +483,30 @@ describe('CueGroupCard (changed elsewhere, drag and drop, failures)', () => {
 
     await w.setProps({ groupCues: [...members, member(73, '18', 3)] });
 
-    expect(w.emitted('stale')).toHaveLength(1);
     expect(memberValues(w as never)).toEqual(['16', '15', '17']);
+    expect(w.find('output').text()).toContain(
+      'This group was changed by someone else. Saving will replace their change.'
+    );
+    expect(w.emitted('done')).toBeUndefined();
+    expect(w.emitted('cancel')).toBeUndefined();
+  });
+
+  it('"Use Their Version" drops the edits, shows the new group and clears the warning', async () => {
+    setup();
+    const w = mountEdit();
+    await flushPromises();
+    await w.find('[aria-label="Move cue 15 later"]').trigger('click');
+    await w.setProps({
+      group: { ...group, label_override: 'Big storm' },
+      groupCues: [...members, member(73, '18', 3)],
+    });
+
+    await button(w as never, 'Use Their Version')!.trigger('click');
+
+    expect(memberValues(w as never)).toEqual(['15', '16', '17', '18']);
+    expect((w.find('input[maxlength="100"]').element as HTMLInputElement).value).toBe('Big storm');
+    expect(w.text()).not.toContain('changed by someone else');
+    expect(w.emitted('dirty')?.at(-1)).toEqual([false]);
   });
 
   it('does not treat a reload that changed nothing as someone else\u2019s edit', async () => {
@@ -495,7 +517,7 @@ describe('CueGroupCard (changed elsewhere, drag and drop, failures)', () => {
 
     await w.setProps({ groupCues: members.map((m) => ({ ...m })) });
 
-    expect(w.emitted('stale')).toBeUndefined();
+    expect(w.text()).not.toContain('changed by someone else');
   });
 
   it('ignores the reload caused by its own save', async () => {
@@ -515,7 +537,7 @@ describe('CueGroupCard (changed elsewhere, drag and drop, failures)', () => {
     release(true);
     await flushPromises();
 
-    expect(w.emitted('stale')).toBeUndefined();
+    expect(w.text()).not.toContain('changed by someone else');
     expect(w.emitted('done')).toHaveLength(1);
   });
 

@@ -195,12 +195,12 @@ function onEnter(): void {
 function moveActive(by: 1 | -1): void {
   if (state.value !== 'results' || results.value.length === 0) return;
   const count = results.value.length;
-  activeOption.value =
-    activeOption.value == null
-      ? by === 1
-        ? 0
-        : count - 1
-      : (activeOption.value + by + count) % count;
+  const current = activeOption.value;
+  if (current == null) {
+    activeOption.value = by === 1 ? 0 : count - 1;
+    return;
+  }
+  activeOption.value = (current + by + count) % count;
 }
 
 function searchWithType(typeId: number): void {
@@ -210,26 +210,26 @@ function searchWithType(typeId: number): void {
   void run(pendingNumber.value);
 }
 
-async function run(numberOverride?: string, typing = false): Promise<void> {
-  const query = numberOverride != null ? null : parseFindQuery(text.value, showStore.cueTypes);
-  let types: CueType[];
-  let number: string;
-  if (numberOverride != null && forcedTypes.value) {
-    types = forcedTypes.value;
-    number = numberOverride;
-  } else if (query?.kind === 'search') {
-    types = query.types;
-    number = query.number;
-  } else if (query?.kind === 'needs-type') {
+/** Work out what to search for, or show the prompt that explains why nothing can be searched. */
+function resolveQuery(numberOverride?: string): { types: CueType[]; number: string } | null {
+  if (numberOverride != null) {
+    return forcedTypes.value ? { types: forcedTypes.value, number: numberOverride } : null;
+  }
+  const query = parseFindQuery(text.value, showStore.cueTypes);
+  if (query.kind === 'search') return { types: query.types, number: query.number };
+  if (query.kind === 'needs-type') {
     pendingNumber.value = query.number;
     state.value = 'needs-type';
-    return;
-  } else if (query?.kind === 'needs-number') {
+  } else if (query.kind === 'needs-number') {
     state.value = 'needs-number';
-    return;
-  } else {
-    return;
   }
+  return null;
+}
+
+async function run(numberOverride?: string, typing = false): Promise<void> {
+  const resolved = resolveQuery(numberOverride);
+  if (!resolved) return;
+  const { types, number } = resolved;
 
   lastQuery.value = forcedTypes.value
     ? `${forcedTypes.value[0].prefix} ${number}`
@@ -254,34 +254,38 @@ async function run(numberOverride?: string, typing = false): Promise<void> {
   }
   // Something newer (more typing, or another search) has taken over.
   if (myRequest !== requestId) return;
+  await showResponse(response, typing, searchedText);
+}
 
-  if (response.exact_matches.length === 1 && !typing) {
+/** Jump to a single exact match (unless still typing), otherwise list what was found. */
+async function showResponse(
+  response: FindResponse,
+  typing: boolean,
+  searchedText: string
+): Promise<void> {
+  const exact = response.exact_matches;
+  if (exact.length === 1 && !typing) {
     closePanel();
-    emit('jump', response.exact_matches[0]);
+    emit('jump', exact[0]);
     return;
   }
-  const shown = response.exact_matches.length > 0 ? response.exact_matches : response.suggestions;
+  const shown = exact.length > 0 ? exact : response.suggestions;
   if (shown.length === 0) {
     state.value = 'none';
     return;
   }
   resultsText.value = searchedText;
-  if (response.exact_matches.length > 0) {
-    const count = response.exact_matches.length;
-    heading.value = {
-      text:
-        count === 1
-          ? `1 cue is numbered ${lastQuery.value}`
-          : `${count} cues are numbered ${lastQuery.value}`,
-      warn: false,
-    };
-  } else {
-    heading.value = { text: `No ${lastQuery.value} yet. Did you mean:`, warn: true };
-  }
+  heading.value = headingFor(exact.length);
   results.value = shown;
   activeOption.value = 0;
   state.value = 'results';
   await loadPreviews(shown);
+}
+
+function headingFor(exactCount: number): { text: string; warn: boolean } {
+  if (exactCount === 0) return { text: `No ${lastQuery.value} yet. Did you mean:`, warn: true };
+  const subject = exactCount === 1 ? '1 cue is' : `${exactCount} cues are`;
+  return { text: `${subject} numbered ${lastQuery.value}`, warn: false };
 }
 
 /** Pages are loaded so each result can show the start of its line. */

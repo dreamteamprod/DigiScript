@@ -633,7 +633,7 @@ describe('ScriptLineCueEditor default cue type, view-only groups and changed cue
     expect(w.find('[role="note"]').text()).not.toContain('SND 10');
   });
 
-  it('reports a cue changed by someone else while the card holds unsaved changes', async () => {
+  it('keeps the card open, with a warning on it, when a cue is changed by someone else under unsaved edits', async () => {
     const d = dialogue();
     useScriptStore().cues = { '1': [cueOn(5, 1, '14')] };
     const w = mountLine(d, {
@@ -646,7 +646,10 @@ describe('ScriptLineCueEditor default cue type, view-only groups and changed cue
     useScriptStore().cues = { '1': [cueOn(5, 1, '15')] };
     await flushPromises();
 
-    expect(w.emitted('target-gone')).toHaveLength(1);
+    expect(w.emitted('target-gone')).toBeUndefined();
+    expect(w.emitted('close-card')).toBeUndefined();
+    expect(w.find('output').text()).toContain('changed by someone else');
+    expect((w.find('input.cue-number-input').element as HTMLInputElement).value).toBe('99');
   });
 
   it('a card that went away mid-request does not leave the next one thinking it is busy', async () => {

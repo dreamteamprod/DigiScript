@@ -76,7 +76,7 @@ describe('CueToolbar', () => {
 
   it('offers All and each cue type, with the chosen one pressed', () => {
     const w = mountToolbar({ filterTypeId: 2 });
-    const group = w.find('[role="group"][aria-label="Show cue types"]');
+    const group = w.find('fieldset[aria-label="Show cue types"]');
     const buttons = group.findAll('button');
 
     expect(buttons.map((b) => b.text())).toEqual(['All', 'LX', 'SND']);

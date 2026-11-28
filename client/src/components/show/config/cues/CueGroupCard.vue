@@ -8,7 +8,7 @@
       <b>{{ mode === 'add' ? 'Add a group of cues to this line' : 'Edit cue group' }}</b>
       <span v-if="mode === 'edit'" class="cue-card-caption">{{ members.length }} cues</span>
       <span class="flex-fill" />
-      <div v-if="mode === 'add'" class="btn-group" role="group" aria-label="What to add">
+      <fieldset v-if="mode === 'add'" class="btn-group" aria-label="What to add">
         <button
           type="button"
           class="btn btn-sm btn-outline-light"
@@ -21,7 +21,7 @@
         <button type="button" class="btn btn-sm btn-primary" aria-pressed="true">
           Group of Cues
         </button>
-      </div>
+      </fieldset>
     </div>
 
     <div class="cue-card-section">
@@ -87,9 +87,9 @@
         Add One Cue
       </button>
     </div>
-    <div v-if="rangeInvalid" class="cue-warn mt-2" role="status">
+    <output v-if="rangeInvalid" class="cue-warn d-block mt-2">
       Use whole numbers, with From no higher than To, and no more than 10,000 cues.
-    </div>
+    </output>
 
     <div class="cue-card-section">
       <span class="cue-card-label">
@@ -99,7 +99,7 @@
             : `${members.length} ${members.length === 1 ? 'cue' : 'cues'} in this group, in order. Drag, or use the arrows, to reorder.`
         }}
       </span>
-      <div v-if="members.length" class="member-list" role="group" aria-label="Cues in this group">
+      <fieldset v-if="members.length" class="member-list" aria-label="Cues in this group">
         <span
           v-for="(member, index) in members"
           :key="member.key"
@@ -155,7 +155,7 @@
             ×
           </button>
         </span>
-      </div>
+      </fieldset>
     </div>
 
     <div class="cue-card-fields align-items-end">
@@ -176,6 +176,12 @@
       </div>
     </div>
 
+    <output v-if="changedElsewhere" class="cue-warn d-block mt-2">
+      This group was changed by someone else. Saving will replace their change.
+      <button type="button" class="btn btn-sm btn-outline-light ms-2" @click="useTheirVersion">
+        Use Their Version
+      </button>
+    </output>
     <div v-if="error" class="cue-error mt-2" role="alert">{{ error }}</div>
 
     <div class="cue-card-actions">
@@ -248,8 +254,6 @@ const emit = defineEmits<{
   'switch-single': [];
   /** Whether the card holds changes that would be lost if it closed. */
   dirty: [value: boolean];
-  /** The group was changed by someone else while this card holds unsaved changes. */
-  stale: [];
   /** This card has its own change request in flight (so a reload it causes is not "someone else"). */
   busy: [value: boolean];
 }>();
@@ -376,14 +380,14 @@ async function move(index: number, by: -1 | 1): Promise<void> {
   members.value.splice(target, 0, item);
   await nextTick();
   const tile = document.querySelector(`[data-member-key="${item.key}"]`);
-  const wanted = tile?.querySelector<HTMLButtonElement>(
-    `[data-move="${by < 0 ? 'earlier' : 'later'}"]`
-  );
+  const same = by < 0 ? 'earlier' : 'later';
+  const other = by < 0 ? 'later' : 'earlier';
+  const wanted = tile?.querySelector<HTMLButtonElement>(`[data-move="${same}"]`);
   // At the end of the list that button is disabled, so use the other one.
   const control =
-    wanted && !wanted.disabled
+    wanted?.disabled === false
       ? wanted
-      : tile?.querySelector<HTMLButtonElement>(`[data-move="${by < 0 ? 'later' : 'earlier'}"]`);
+      : tile?.querySelector<HTMLButtonElement>(`[data-move="${other}"]`);
   control?.focus();
 }
 
@@ -432,9 +436,20 @@ const dirty = computed(() => {
 });
 watch(dirty, (value) => emit('dirty', value), { immediate: true });
 
-// Someone else changed this group while the card was open. If nothing here has been edited,
-// show the new group so Save cannot send the old membership back over their change; if it
-// has, say so instead of silently overwriting either side.
+// Someone else changed this group while the card was open. If nothing here has been edited, show
+// the new group so Save cannot send the old membership back over their change. If something has,
+// keep it, say so on the card and let the person choose: Save replaces the other change, or "Use
+// Their Version" drops their own edits.
+const changedElsewhere = ref(false);
+
+function useTheirVersion(): void {
+  initialMembers.value = toMembers(props.groupCues);
+  initialLabel.value = props.group?.label_override ?? '';
+  members.value = initialMembers.value.map((m) => ({ ...m }));
+  labelOverride.value = initialLabel.value;
+  changedElsewhere.value = false;
+}
+
 watch(
   () =>
     JSON.stringify([
@@ -443,14 +458,8 @@ watch(
     ]),
   () => {
     if (props.mode !== 'edit' || submitting.value) return;
-    if (dirty.value) {
-      emit('stale');
-      return;
-    }
-    initialMembers.value = toMembers(props.groupCues);
-    initialLabel.value = props.group?.label_override ?? '';
-    members.value = initialMembers.value.map((m) => ({ ...m }));
-    labelOverride.value = initialLabel.value;
+    if (dirty.value) changedElsewhere.value = true;
+    else useTheirVersion();
   }
 );
 

@@ -78,7 +78,7 @@ function onKeydown(event: KeyboardEvent): void {
   const enabled = orderedTypes.value.filter((t) => isWritable(t.id));
   if (enabled.length === 0) return;
   event.preventDefault();
-  const focusedId = Number(document.activeElement?.getAttribute('data-cue-type-id'));
+  const focusedId = Number((document.activeElement as HTMLElement | null)?.dataset.cueTypeId);
   const current = enabled.findIndex((t) => t.id === focusedId);
   const next = enabled[(current + (forward ? 1 : -1) + enabled.length) % enabled.length];
   select(next.id);
@@ -88,10 +88,7 @@ function onKeydown(event: KeyboardEvent): void {
 defineExpose({
   /** Focus the chosen type, or the first writable one. */
   focus(): void {
-    const target =
-      props.modelValue != null
-        ? props.modelValue
-        : orderedTypes.value.find((t) => isWritable(t.id))?.id;
+    const target = props.modelValue ?? orderedTypes.value.find((t) => isWritable(t.id))?.id;
     if (target != null) {
       root.value?.querySelector<HTMLElement>(`[data-cue-type-id="${target}"]`)?.focus();
     }

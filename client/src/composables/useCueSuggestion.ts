@@ -23,11 +23,17 @@ export function isNumericIdent(value: string | null | undefined): value is strin
   return value != null && NUMERIC.test(value);
 }
 
+function trimTrailingZeros(text: string): string {
+  let end = text.length;
+  while (end > 0 && text.charCodeAt(end - 1) === 48) end -= 1;
+  return text.slice(0, end);
+}
+
 /** Strip leading zeros and trailing fractional zeros: "013.50" -> "13.5". */
 export function canonicalDecimal(value: string): string {
   const [rawInt, rawFrac = ''] = value.split('.');
   const int = rawInt.replace(/^0+(?=\d)/, '');
-  const frac = rawFrac.replace(/0+$/, '');
+  const frac = trimTrailingZeros(rawFrac);
   return frac ? `${int}.${frac}` : int;
 }
 
@@ -60,6 +66,109 @@ export interface SuggestionResult {
   next: string | null;
 }
 
+/** The numbers around a suggestion, scaled so that every value is a whole BigInt. */
+interface Grid {
+  places: number;
+  /** One whole unit (1.00) on this grid. */
+  one: bigint;
+  isUsed: (value: bigint) => boolean;
+}
+
+/** The first whole number at or after `from` that is not already used. */
+function firstFreeWhole(grid: Grid, from: bigint): bigint {
+  let whole = from;
+  while (grid.isUsed(whole)) whole += grid.one;
+  return whole;
+}
+
+/** The next whole number above `value`. */
+function wholeAbove(grid: Grid, value: bigint): bigint {
+  return (value / grid.one + 1n) * grid.one;
+}
+
+/** Rules 1 to 3: at most one neighbour. */
+function withoutBothNeighbours(grid: Grid, p: bigint | null, n: bigint | null): bigint | null {
+  if (n == null) return firstFreeWhole(grid, p == null ? grid.one : wholeAbove(grid, p));
+
+  // Only a following cue: the whole number below it, stepping down past used ones...
+  if (n > grid.one) {
+    let whole = ((n + grid.one - 1n) / grid.one) * grid.one - grid.one;
+    while (grid.isUsed(whole) && whole > grid.one) whole -= grid.one;
+    return grid.isUsed(whole) ? null : whole;
+  }
+  // ...or half of it when it is 1 or less, if that needs no more than two decimals.
+  if (n <= 0n || n % 2n !== 0n) return null;
+  const half = n / 2n;
+  const tooFine = decimalPlaces(fromScaled(half, grid.places)) > MAX_SUGGESTED_PLACES;
+  return tooFine || grid.isUsed(half) ? null : half;
+}
+
+/** Rule 6: add one unit of p's last place, repeatedly, while below n. */
+function stepFromPrevious(grid: Grid, p: bigint, n: bigint, prevPlaces: number): bigint | null {
+  if (prevPlaces < 1 || prevPlaces > MAX_SUGGESTED_PLACES) return null;
+  const unit = 10n ** BigInt(grid.places - prevPlaces);
+  for (let value = p + unit; value < n; value += unit) {
+    if (!grid.isUsed(value)) return value;
+  }
+  return null;
+}
+
+/** Rule 7 at one precision: the free value nearest the midpoint of p and n (the lower on a tie). */
+function nearestMidpoint(grid: Grid, p: bigint, n: bigint, places: number): bigint | null {
+  const unit = 10n ** BigInt(grid.places - places);
+  const twoMid = p + n;
+  // The largest value on this grid at or below the midpoint (2 * lower <= p + n).
+  let down = (twoMid / (2n * unit)) * unit;
+  let up = down + unit;
+  const inRange = (value: bigint) => value > p && value < n;
+  while (inRange(down) || inRange(up)) {
+    const pickDown = inRange(down) && (!inRange(up) || twoMid - 2n * down <= 2n * up - twoMid);
+    const candidate = pickDown ? down : up;
+    if (!grid.isUsed(candidate)) return candidate;
+    if (pickDown) down -= unit;
+    else up += unit;
+  }
+  return null;
+}
+
+/** Rule 7: finer and finer places, up to two decimals, until one has a free value. */
+function finerBetween(grid: Grid, p: bigint, n: bigint, prevPlaces: number): bigint | null {
+  const start = prevPlaces === 0 ? 1 : prevPlaces + 1;
+  for (let places = start; places <= MAX_SUGGESTED_PLACES; places += 1) {
+    const found = nearestMidpoint(grid, p, n, places);
+    if (found != null) return found;
+  }
+  return null;
+}
+
+/** Rules 5 to 7: room between a previous and a following number (p < n). */
+function between(grid: Grid, p: bigint, n: bigint, prevPlaces: number): bigint | null {
+  const whole = wholeAbove(grid, p);
+  if (whole < n && !grid.isUsed(whole)) return whole;
+  return stepFromPrevious(grid, p, n, prevPlaces) ?? finerBetween(grid, p, n, prevPlaces);
+}
+
+function makeGrid(
+  previous: string | null,
+  next: string | null,
+  used: Iterable<string | null>
+): Grid {
+  const places = Math.max(
+    MAX_SUGGESTED_PLACES,
+    previous ? decimalPlaces(previous) : 0,
+    next ? decimalPlaces(next) : 0
+  );
+  const usedSet = new Set<string>();
+  for (const ident of used) {
+    if (isNumericIdent(ident)) usedSet.add(canonicalDecimal(ident));
+  }
+  return {
+    places,
+    one: 10n ** BigInt(places),
+    isUsed: (value) => usedSet.has(fromScaled(value, places)),
+  };
+}
+
 /**
  * Suggest the next cue number.
  *
@@ -74,110 +183,23 @@ export function suggestCueNumber(
 ): SuggestionResult {
   const previous = [...before].reverse().find(isNumericIdent) ?? null;
   const next = after.find(isNumericIdent) ?? null;
-  const blank = (reason: SuggestionBlankReason): SuggestionResult => ({
-    value: null,
-    reason,
+  const grid = makeGrid(previous, next, used);
+  const result = (
+    value: bigint | null,
+    reason: SuggestionBlankReason = 'no-free-number'
+  ): SuggestionResult => ({
+    value: value == null ? null : fromScaled(value, grid.places),
+    reason: value == null ? reason : null,
     previous,
     next,
   });
-  const found = (value: string): SuggestionResult => ({
-    value,
-    reason: null,
-    previous,
-    next,
-  });
 
-  const places = Math.max(
-    MAX_SUGGESTED_PLACES,
-    previous ? decimalPlaces(previous) : 0,
-    next ? decimalPlaces(next) : 0
-  );
-  const one = 10n ** BigInt(places);
-  const usedSet = new Set<string>();
-  for (const ident of used) {
-    if (isNumericIdent(ident)) usedSet.add(canonicalDecimal(ident));
-  }
-  const isUsed = (v: bigint) => usedSet.has(fromScaled(v, places));
-
-  const P = previous ? toScaled(previous, places) : null;
-  const N = next ? toScaled(next, places) : null;
-
-  // 1. Neither neighbour.
-  if (P == null && N == null) {
-    let w = one;
-    while (isUsed(w)) w += one;
-    return found(fromScaled(w, places));
-  }
-
-  // 2. Only a previous cue.
-  if (P != null && N == null) {
-    let w = (P / one + 1n) * one;
-    while (isUsed(w)) w += one;
-    return found(fromScaled(w, places));
-  }
-
-  // 3. Only a following cue.
-  if (P == null && N != null) {
-    if (N > one) {
-      let w = ((N + one - 1n) / one) * one - one;
-      while (isUsed(w) && w > one) w -= one;
-      return isUsed(w) ? blank('no-free-number') : found(fromScaled(w, places));
-    }
-    if (N <= 0n || N % 2n !== 0n) return blank('no-free-number');
-    const half = N / 2n;
-    if (decimalPlaces(fromScaled(half, places)) > MAX_SUGGESTED_PLACES || isUsed(half)) {
-      return blank('no-free-number');
-    }
-    return found(fromScaled(half, places));
-  }
-
-  // Both neighbours from here on.
-  const p = P as bigint;
-  const n = N as bigint;
-  const prevText = previous as string;
-
-  // 4. Numbers out of order.
-  if (p >= n) return blank('out-of-order');
-
-  // 5. The next whole number, if it fits and is free.
-  const whole = (p / one + 1n) * one;
-  if (whole < n && !isUsed(whole)) return found(fromScaled(whole, places));
-
-  // 6. Add one unit of p's last place while below n.
-  const prevPlaces = decimalPlaces(prevText);
-  if (prevPlaces >= 1 && prevPlaces <= MAX_SUGGESTED_PLACES) {
-    const unit = 10n ** BigInt(places - prevPlaces);
-    for (let v = p + unit; v < n; v += unit) {
-      if (!isUsed(v)) return found(fromScaled(v, places));
-    }
-  }
-
-  // 7. Finer places, taking the free value nearest the midpoint (lower on a tie).
-  const startPlaces = prevPlaces === 0 ? 1 : prevPlaces + 1;
-  for (let k = startPlaces; k <= MAX_SUGGESTED_PLACES; k += 1) {
-    const unit = 10n ** BigInt(places - k);
-    const twoMid = p + n;
-    // Largest grid value at or below the midpoint (2 * lower <= p + n).
-    const lower = (twoMid / (2n * unit)) * unit;
-    let upper = lower + unit;
-    let down = lower;
-    while ((down > p && down < n) || (upper > p && upper < n)) {
-      const downOk = down > p && down < n;
-      const upOk = upper > p && upper < n;
-      if (downOk && (!upOk || twoMid - 2n * down <= 2n * upper - twoMid)) {
-        if (!isUsed(down)) return found(fromScaled(down, places));
-        down -= unit;
-      } else if (upOk) {
-        if (!isUsed(upper)) return found(fromScaled(upper, places));
-        upper += unit;
-      } else {
-        break;
-      }
-    }
-  }
-
-  // 8. Nothing fits.
-  return blank('no-free-number');
+  const p = previous ? toScaled(previous, grid.places) : null;
+  const n = next ? toScaled(next, grid.places) : null;
+  if (p == null || n == null) return result(withoutBothNeighbours(grid, p, n));
+  // Numbers out of order: nothing sensible to suggest.
+  if (p >= n) return result(null, 'out-of-order');
+  return result(between(grid, p, n, decimalPlaces(previous as string)));
 }
 
 // ── Positions ────────────────────────────────────────────────────────────────
@@ -212,7 +234,7 @@ export function orderedCuesOfType(
   const entries: PositionedCue[] = [];
   for (const [lineId, cues] of Object.entries(cuesByLine)) {
     const position = linePositions[lineId];
-    if (!position || position.page == null) continue;
+    if (position?.page == null) continue;
     for (const cue of cues) {
       if (cue.cue_type_id === cueTypeId) {
         entries.push({ cue, page: position.page, index: position.index });
@@ -258,7 +280,7 @@ export function nearestCues(
   line: LineKey
 ): { previous: NearestCue | null; next: NearestCue | null } {
   const { before, after } = splitAtLine(ordered, line);
-  const prev = before[before.length - 1];
+  const prev = before.at(-1);
   const next = after[0];
   return {
     previous: prev ? { cue: prev.cue, where: describeWhere(prev, line, 'before') } : null,

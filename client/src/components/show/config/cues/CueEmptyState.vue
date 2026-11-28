@@ -7,7 +7,7 @@
           A cue type is a kind of cue, such as lighting or sound. Once you have one, you can place
           cues in the script.
         </p>
-        <div class="cue-empty-suggestions" role="group" aria-label="Common cue types">
+        <fieldset class="cue-empty-suggestions" aria-label="Common cue types">
           <button
             v-for="suggestion in SUGGESTED_CUE_TYPES"
             :key="suggestion.prefix"
@@ -18,7 +18,7 @@
             <span class="swatch" :style="{ background: suggestion.colour }" aria-hidden="true" />
             <b>{{ suggestion.prefix }}</b> {{ suggestion.description }}
           </button>
-        </div>
+        </fieldset>
         <p class="cue-empty-caption">
           Pick a common one to start with. You can change its prefix, name and colour before it is
           saved.

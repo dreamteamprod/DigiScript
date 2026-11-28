@@ -142,7 +142,8 @@ test('the toolbar has page navigation, a find box and a cue type filter', async 
 test('can open the Go to Page dialog in the cue editor', async () => {
   await page.click('button:has-text("Go to Page")');
   await waitForModal(page, 'Go to Page');
-  // Cancel the dialog — no script pages exist yet at this point in the test suite
+  await expect(page.locator('.modal.show .modal-title')).toHaveText('Go to Page');
+  // Leave without going anywhere.
   await page.click(
     '.modal.show .modal-footer button.btn-secondary, .modal.show button:has-text("Cancel")'
   );

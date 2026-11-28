@@ -83,9 +83,9 @@ The colour of each cue matches the colour of its cue type (or your own colour fo
 
 ##### Editing and Deleting a Cue
 
-Click a cue to open it in a card under its line. You can change its type and number, then click **Save Cue**, or click **Delete Cue**. Deleting asks you to confirm and removes the cue from the current script revision only; other revisions keep it. Cues cannot be moved to another line.
+Click a cue to open it in a card under its line. You can change its type and number, then click **Save Cue**, or click **Delete Cue**. Deleting asks you to confirm and removes the cue from the current script revision only; other revisions keep it. Cues cannot be moved to another line. If someone else changes the cue while your card is open and you have not typed anything, the card updates to show their version. If you have already made changes, the card keeps them and warns you that saving will replace the other change; **Use Their Version** drops your changes and shows theirs. If the cue is deleted, or the line it was on is changed, the card closes and says so.
 
-If you do not have permission to change a cue's type, clicking it shows a note instead, such as **View only. You do not have permission to change LX cues.** (naming that cue's type) If you cannot change any cue type, you can still look at every cue, but there is no **+ Cue** button.
+If you do not have permission to change a cue's type, clicking it shows a note naming that cue's type instead, such as **View only. You do not have permission to change LX cues.** If you cannot change any cue type, you can still look at every cue, but there is no **+ Cue** button.
 
 ##### Cue Groups
 
