@@ -367,7 +367,9 @@ function getMicTooltip(micStatus: MicStatus): string {
   border-radius: 0.25rem;
   border: 2px solid;
   cursor: default;
-  transition: all 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   min-height: 60px;
   display: flex;
   flex-direction: column;
@@ -393,6 +395,12 @@ function getMicTooltip(micStatus: MicStatus): string {
 .mic-status-item:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mic-status-item {
+    transition: none;
+  }
 }
 
 .mic-name {

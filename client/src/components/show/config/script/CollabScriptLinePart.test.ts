@@ -161,6 +161,24 @@ describe('CollabScriptLinePart', () => {
     expect(wrapper.emitted('try-finish-line')).toBeTruthy();
   });
 
+  it('emits navigate-up / navigate-down on Up / Down in the text field', async () => {
+    wrapper = mountPart();
+    await wrapper.find('input').trigger('keydown.up');
+    await wrapper.find('input').trigger('keydown.down');
+
+    expect(wrapper.emitted('navigate-up')).toHaveLength(1);
+    expect(wrapper.emitted('navigate-down')).toHaveLength(1);
+  });
+
+  it('ignores Up / Down mid-IME-composition so candidate selection does not close the line', async () => {
+    wrapper = mountPart();
+    await wrapper.find('input').trigger('keydown', { key: 'ArrowUp', isComposing: true });
+    await wrapper.find('input').trigger('keydown', { key: 'ArrowDown', isComposing: true });
+
+    expect(wrapper.emitted('navigate-up')).toBeUndefined();
+    expect(wrapper.emitted('navigate-down')).toBeUndefined();
+  });
+
   it('sorts character options by most-recently-used when the user setting is on', () => {
     useUserStore().userSettings = { character_mru_sort: true };
     useScriptDraftStore().pageSnapshots = {

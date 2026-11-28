@@ -1,26 +1,27 @@
 /**
- * The payload `applyToSelection()` applies to every line in the active selection, in
- * both `ScriptEditor.vue` and `CollabScriptEditor.vue` — one call handles "Set
- * Character or Group" (`assignee` set, `actScene` null) and "Move to Scene"
- * (`actScene` set, `assignee` null) alike. Two optional sections, each internally
- * complete, rather than five independently-nullable fields: `actScene` is either
- * both fields set or absent entirely, and the same for `assignee` — whose
- * `characterId`/`characterGroupId` are a union rather than two more
- * independently-nullable fields, so "neither selected" (which would silently clear a
- * line's assignment) is not representable.
+ * "Set Character or Group" for one part position: exactly one of `characterId` /
+ * `characterGroupId` is set, so "neither selected" (which would silently clear a
+ * line's assignment) is not representable. `partIndex` is 1-based, as shown in the
+ * dialog.
  */
-export interface BulkEditPayload {
-  actScene: { actId: number; sceneId: number } | null;
-  assignee:
-    | {
-        partIndex: number;
-        characterId: number;
-        characterGroupId: null;
-      }
-    | {
-        partIndex: number;
-        characterId: null;
-        characterGroupId: number;
-      }
-    | null;
-}
+export type CharacterAssignee =
+  | {
+      partIndex: number;
+      characterId: number;
+      characterGroupId: null;
+    }
+  | {
+      partIndex: number;
+      characterId: null;
+      characterGroupId: number;
+    };
+
+/**
+ * The payload `applyToSelection()` applies to every line in the active selection, in
+ * both `ScriptEditor.vue` and `CollabScriptEditor.vue`. A discriminated union on
+ * `kind`: "Move to Scene" (`actScene`) and "Set Character or Group" (`assignee`) are
+ * mutually exclusive, so the nonsensical "both" and "neither" payloads cannot be
+ * constructed.
+ */
+export type BulkEditPayload =
+  { kind: 'actScene'; actId: number; sceneId: number } | ({ kind: 'assignee' } & CharacterAssignee);

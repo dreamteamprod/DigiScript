@@ -2,7 +2,7 @@ import fs from 'node:fs';
 
 import { STATE_FILE, RUN_DIR, RunState } from './env.js';
 
-export default async function globalTeardown(): Promise<void> {
+export default function globalTeardown(): void {
   if (fs.existsSync(STATE_FILE)) {
     let state: RunState | undefined;
     try {

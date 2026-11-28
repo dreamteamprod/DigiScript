@@ -517,9 +517,10 @@ class TestHasLineChanged(_ScriptTestSetup):
             assert _has_line_changed(line, self.line_id, 1, session) is True
 
     def test_missing_db_row_raises_value_error(self):
+        ydoc_line = self._make_ydoc_line()
         with self._app.get_db().sessionmaker() as session:
             with pytest.raises(ValueError):
-                _has_line_changed(self._make_ydoc_line(), 99999, 1, session)
+                _has_line_changed(ydoc_line, 99999, 1, session)
 
 
 # ---------------------------------------------------------------------------

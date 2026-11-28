@@ -20,7 +20,14 @@
           No character line data to display. Ensure the script has dialogue lines assigned to
           characters.
         </div>
-        <svg v-else ref="svgRef" :width="totalWidth" :height="totalHeight" class="timeline-svg">
+        <svg
+          v-else
+          ref="svgRef"
+          :width="totalWidth"
+          :height="totalHeight"
+          class="timeline-svg"
+          aria-label="Character timeline by act and scene"
+        >
           <!-- Act labels -->
           <g class="act-labels" :transform="`translate(${margin.left},0)`">
             <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">

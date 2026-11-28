@@ -16,6 +16,10 @@ export interface SelectionRange {
  * index of the line just ticked, returns the new range — or null if the
  * selection should clear entirely.
  *
+ * Precondition: `current.startIndex <= current.endIndex`. Every range this function
+ * returns satisfies that, and callers only ever feed back ranges it produced, so it
+ * isn't re-checked here; an inverted range gives meaningless results.
+ *
  * - No active selection: the ticked line becomes a fresh single-line range.
  * - Ticking before the range's start, or after its end: extends that side.
  * - Ticking the sole selected line again: clears the selection.

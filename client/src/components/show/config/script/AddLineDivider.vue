@@ -67,7 +67,7 @@
  * Act Here" (the other two items the design's menu shows) are not implemented yet —
  * see SCRIPT_EDITOR_REDESIGN_E.md — so this menu only offers the four line types.
  */
-import { LINE_TYPES } from '@/constants/lineTypes';
+import { LINE_TYPES, type LineType } from '@/constants/lineTypes';
 
 defineProps<{
   /** The line number immediately above this divider, for the a11y label only. */
@@ -75,7 +75,7 @@ defineProps<{
 }>();
 
 defineEmits<{
-  add: [lineType: number];
+  add: [lineType: LineType];
 }>();
 </script>
 

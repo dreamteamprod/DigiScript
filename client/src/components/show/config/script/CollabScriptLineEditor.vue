@@ -1,8 +1,12 @@
 <template>
   <BRow
+    ref="rowRef"
     class="collab-line-editor-row line-editor-card"
     :class="{ 'remote-editing-row': (remoteEditors?.length ?? 0) > 0 }"
+    tabindex="-1"
     @keydown.esc="onEsc"
+    @keydown.up.self.prevent="$emit('navigateUp')"
+    @keydown.down.self.prevent="$emit('navigateDown')"
   >
     <RemoteEditorsBadge :names="remoteEditors ?? []" variant="editor" />
 
@@ -119,13 +123,19 @@
           &middot; <kbd>&uarr;</kbd> <kbd>&darr;</kbd> move between lines. Changes are already
           shared — Done just closes the editor.
         </BCol>
+        <!-- Shown instead while the card itself (not a text input) has focus — Cue/Gap
+             lines — where Enter and Tab do nothing, so only list the keys that work. -->
+        <BCol class="keyboard-hint-row">
+          <kbd>Esc</kbd> done &middot; <kbd>&uarr;</kbd> <kbd>&darr;</kbd> move between lines.
+          Changes are already shared — Done just closes the editor.
+        </BCol>
       </BRow>
     </BCol>
   </BRow>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { useVuelidate } from '@vuelidate/core';
 import { required } from '@vuelidate/validators';
 import { LINE_TYPES } from '@/constants/lineTypes';
@@ -182,6 +192,7 @@ const writer = useDraftWriter();
 
 const scriptMode = computed(() => systemStore.currentShow?.script_mode ?? 0);
 const lineType = computed(() => props.line.line_type);
+const rowRef = ref<{ $el: HTMLElement } | null>(null);
 
 /** See ScriptLineEditor.vue's own copy of this — decided once from the line's
  * act/scene as this editor opened on it, not recomputed as `props.line`
@@ -275,6 +286,14 @@ function onEsc(): void {
 
 onMounted(() => {
   v$.value.$touch();
+  // Cue and gap lines have no text input to take focus, so without this focus would
+  // fall to <body> when Up/Down lands here, killing Esc and further Up/Down (their
+  // handlers live on this row / the text input). The row itself is focusable
+  // (tabindex="-1") and handles Up/Down/Esc directly while it holds focus (.self
+  // keeps those from double-firing for events bubbling up from inner inputs).
+  if (lineType.value !== LINE_TYPES.DIALOGUE && lineType.value !== LINE_TYPES.STAGE_DIRECTION) {
+    nextTick(() => (rowRef.value?.$el as HTMLElement | undefined)?.focus());
+  }
   if (
     props.line.line_parts.length === 0 &&
     (lineType.value === LINE_TYPES.DIALOGUE || lineType.value === LINE_TYPES.STAGE_DIRECTION)
@@ -309,6 +328,21 @@ onMounted(() => {
 }
 .line-editor-card:has(input[type='text']:focus) .keyboard-hint {
   display: block;
+}
+.keyboard-hint-row {
+  display: none;
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+}
+.line-editor-card:focus .keyboard-hint-row {
+  display: block;
+}
+.keyboard-hint-row kbd {
+  font-size: 0.75rem;
+}
+.line-editor-card:focus {
+  outline: none;
 }
 .keyboard-hint kbd {
   font-size: 0.75rem;

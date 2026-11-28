@@ -42,7 +42,14 @@
         <div v-if="!hasData" class="text-center py-5 text-muted">
           No allocation data to display for this view
         </div>
-        <svg v-else ref="svgRef" :width="totalWidth" :height="totalHeight" class="timeline-svg">
+        <svg
+          v-else
+          ref="svgRef"
+          :width="totalWidth"
+          :height="totalHeight"
+          class="timeline-svg"
+          aria-label="Microphone allocation timeline by act and scene"
+        >
           <!-- Act labels -->
           <g class="act-labels" :transform="`translate(${margin.left},0)`">
             <g v-for="actGroup in actGroups" :key="`act-${actGroup.actId}`">
@@ -291,7 +298,7 @@ function generateBarsForCharacter(
         (a) => a.scene_id === scene.id && a.character_id === characterId
       );
       if (alloc) {
-        if (current && current.micId === micIdNum) {
+        if (current?.micId === micIdNum) {
           current.endIndex = idx;
         } else {
           if (current) segments.push(current);
@@ -366,7 +373,7 @@ function generateBarsForCast(castId: number, rowIndex: number, bars: AllocationB
         (a) => a.scene_id === scene.id && castChars.some((c) => c.id === a.character_id)
       );
       if (alloc) {
-        if (current && current.micId === micIdNum) {
+        if (current?.micId === micIdNum) {
           current.endIndex = idx;
           current.charIds.add(alloc.character_id);
         } else {

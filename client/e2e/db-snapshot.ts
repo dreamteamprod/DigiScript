@@ -89,7 +89,7 @@ export function registerRetryHooks(): void {
       await restoreSpecStartAndRestartServer();
     }
   });
-  test.beforeAll(async () => {
+  test.beforeAll(() => {
     if (test.info().retry === 0) {
       snapshotSpecStart();
     }

@@ -32,6 +32,7 @@
         <BFormSelect
           id="set-char-input"
           v-model="selectedCharacterId"
+          data-testid="set-character-select"
           :options="characterOptions"
         />
       </BFormGroup>
@@ -67,6 +68,7 @@ import type { BModal } from 'bootstrap-vue-next';
 import { useUserStore } from '@/stores/user';
 import { buildCombinedCharacterOptions, type CombinedSelectOption } from '@/js/mruSortUtils';
 import type { Character, CharacterGroup } from '@/types/api/show';
+import type { CharacterAssignee } from '@/types/bulkEdit';
 
 export interface SelectedLinePreview {
   label: string;
@@ -81,9 +83,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  apply: [
-    payload: { partIndex: number; characterId: number | null; characterGroupId: number | null },
-  ];
+  apply: [payload: CharacterAssignee];
 }>();
 
 const userStore = useUserStore();
@@ -167,19 +167,25 @@ const preview = computed<PreviewRow[]>(() =>
 );
 
 const changeCount = computed(() => preview.value.filter((p) => p.kind === 'change').length);
-const canApply = computed(
-  () =>
-    changeCount.value > 0 &&
-    (selectedCharacterId.value != null || selectedCharacterGroupId.value != null)
-);
+/** The chosen assignee, narrowed once: exactly one of character / group, or null if
+ * neither is picked. The character wins if both were somehow set (the combined dropdown
+ * can't do that, but the two separate selects could). `canApply` and `handleOk` both
+ * derive from this, so they can never disagree about what is applicable. */
+const assignee = computed<CharacterAssignee | null>(() => {
+  const partIndex = selectedPartIndex.value;
+  if (selectedCharacterId.value != null) {
+    return { partIndex, characterId: selectedCharacterId.value, characterGroupId: null };
+  }
+  if (selectedCharacterGroupId.value != null) {
+    return { partIndex, characterId: null, characterGroupId: selectedCharacterGroupId.value };
+  }
+  return null;
+});
+const canApply = computed(() => changeCount.value > 0 && assignee.value !== null);
 
 function handleOk(): void {
-  if (!canApply.value) return;
-  emit('apply', {
-    partIndex: selectedPartIndex.value,
-    characterId: selectedCharacterId.value,
-    characterGroupId: selectedCharacterGroupId.value,
-  });
+  if (assignee.value === null || !canApply.value) return;
+  emit('apply', assignee.value);
 }
 
 function reset(): void {

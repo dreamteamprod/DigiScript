@@ -370,6 +370,7 @@ import { useDraftPages } from '@/composables/useDraftPages';
 import { useDraftWriter } from '@/composables/useDraftWriter';
 import { useAutoSave, autoSaveSettings } from '@/composables/useAutoSave';
 import { useConfirm } from '@/composables/useConfirm';
+import log from 'loglevel';
 import { toast } from '@/js/toast';
 import { snapshotPagesToScriptLines } from '@/js/yjs/draftAdapter';
 import { firstInvalidDraftLine } from '@/js/scriptDraftValidation';
@@ -389,8 +390,7 @@ import { presenceInitials, presenceColor, SELF_AVATAR_COLOR } from '@/js/presenc
 import type { ScriptLine } from '@/types/api/script';
 import type { DraftScriptLine } from '@/js/yjs/draftAdapter';
 import type { LineUid } from '@/js/yjs/yjsSnapshot';
-import type { BulkEditPayload } from '@/types/bulkEdit';
-import { narrowAssignee } from '@/js/bulkEditLine';
+import type { BulkEditPayload, CharacterAssignee } from '@/types/bulkEdit';
 
 /**
  * The script editor for collaborative mode (`collaborative_script_editing` on). An
@@ -544,16 +544,29 @@ interface PresenceEntry {
   openLineCount: number;
   subText: string;
 }
+const ROLE_VARIANTS: Record<PresenceEntry['role'], PresenceEntry['roleVariant']> = {
+  editor: 'warning',
+  cutting: 'info',
+  viewer: 'secondary',
+};
+const ROLE_BADGES: Record<PresenceEntry['role'], PresenceEntry['badge']> = {
+  editor: 'editing',
+  cutting: 'cutting',
+  viewer: null,
+};
+function resolvePresenceRole(
+  member: { role: PresenceEntry['role']; client_id: string | null },
+  cutterIds: Set<string>
+): PresenceEntry['role'] {
+  if (member.role === 'editor') return 'editor';
+  if (member.client_id && cutterIds.has(member.client_id)) return 'cutting';
+  return member.role;
+}
 const presenceEntries = computed<PresenceEntry[]>(() => {
   const cutterIds = new Set(scriptConfigStore.cutters.map((c) => c.internal_id));
   return draftStore.members.map((m, i) => {
     const isSelf = m.client_id !== null && m.client_id === wsStore.internalUUID;
-    const role: PresenceEntry['role'] =
-      m.role === 'editor'
-        ? 'editor'
-        : m.client_id && cutterIds.has(m.client_id)
-          ? 'cutting'
-          : m.role;
+    const role = resolvePresenceRole(m, cutterIds);
     const awareness = m.client_id ? draftStore.remoteAwareness[m.client_id] : undefined;
     const page = isSelf ? currentPage.value : (awareness?.currentPage ?? null);
     const openLineCount = isSelf ? editingLines.value.size : (awareness?.openLineUids.length ?? 0);
@@ -566,11 +579,11 @@ const presenceEntries = computed<PresenceEntry[]>(() => {
       clientId: m.client_id,
       username: m.username,
       role,
-      roleVariant: role === 'editor' ? 'warning' : role === 'cutting' ? 'info' : 'secondary',
+      roleVariant: ROLE_VARIANTS[role],
       isSelf,
       initials: presenceInitials(m.username),
       color: isSelf ? SELF_AVATAR_COLOR : presenceColor(m.username),
-      badge: role === 'editor' ? 'editing' : role === 'cutting' ? 'cutting' : null,
+      badge: ROLE_BADGES[role],
       title: `${m.username}${isSelf ? ' (you)' : ''}, ${role}`,
       page,
       openLineCount,
@@ -877,6 +890,11 @@ function finishAndAddLine(index: number): void {
   insertLineAt(index, LINE_TYPES.DIALOGUE);
 }
 
+/** Up/Down close the current line without validating it, unlike Esc/Enter. That is
+ * intentional: arrow keys are navigation, not "I'm finished with this line", and
+ * blocking them on a half-filled line would trap the keyboard user. Nothing is lost
+ * or committed invalid — the draft keeps the line as-is and `firstInvalidLine`
+ * disables Save (naming the offending line) until it's fixed. */
 function navigateUp(index: number): void {
   if (index <= 0) return;
   const line = draftLines.value[index];
@@ -1060,7 +1078,8 @@ async function goToPage(): Promise<void> {
   try {
     await navigateTo(target);
     goToPageModal.value?.hide();
-  } catch {
+  } catch (error) {
+    log.error(`Failed to navigate to page ${target}`, error);
     pageError.value = 'Could not load that page — check the connection and try again.';
   } finally {
     changingPage.value = false;
@@ -1091,17 +1110,22 @@ async function stopCutting(): Promise<void> {
     );
     if (!ok) return;
   }
-  scriptConfigStore.setCutMode(false);
+  // Only leave cut mode once the server has been told: if the send fails the server
+  // still holds the cut slot, so flipping the UI first would strand us out of sync.
   if (!sendObj({ OP: 'STOP_SCRIPT_EDIT', DATA: {} })) {
     toast.error('Cannot stop cutting: not connected to the server');
+    return;
   }
+  scriptConfigStore.setCutMode(false);
 }
 
 async function saveCuts(): Promise<void> {
   cuttingSaveInProgress.value = true;
   try {
-    await scriptStore.saveCuts(linePartCuts.value);
-    linePartCuts.value = [...scriptStore.cuts];
+    // saveCuts() toasts its own failures; on failure keep the user's pending cuts.
+    if (await scriptStore.saveCuts(linePartCuts.value)) {
+      linePartCuts.value = [...scriptStore.cuts];
+    }
   } finally {
     cuttingSaveInProgress.value = false;
   }
@@ -1211,14 +1235,14 @@ function applyBulkCharacter(
   targetPartIndex: number,
   characterId: number | null,
   characterGroupId: number | null
-): void {
+): boolean {
   const sortedParts = [...line.line_parts].sort(
     (a, b) => (a.part_index ?? 0) - (b.part_index ?? 0)
   );
   const targetPart = sortedParts[targetPartIndex];
-  if (targetPart) {
-    writer.setPartCharacter(page, line._uid, targetPart._uid, characterId, characterGroupId);
-  }
+  if (!targetPart) return false;
+  writer.setPartCharacter(page, line._uid, targetPart._uid, characterId, characterGroupId);
+  return true;
 }
 
 function openSetCharacterDialog(): void {
@@ -1230,61 +1254,52 @@ function openMoveToSceneDialog(): void {
 }
 
 /** Applies a change to every line in the active selection — shared by "Set Character
- * or Group" and "Move to Scene", each building its own half of a `BulkEditPayload`
- * (the other half stays null). Selection is confined to the current page (see
+ * or Group" and "Move to Scene", each building its own kind of `BulkEditPayload`.
+ * Selection is confined to the current page (see
  * `onToggleSelect`), so this never needs to cross pages. */
 function applyToSelection(payload: BulkEditPayload): void {
   const bounds = selectionBounds.value;
   if (!bounds) return;
-  const character = payload.assignee
-    ? {
-        targetPartIndex: payload.assignee.partIndex - 1,
-        characterId: payload.assignee.characterId,
-        characterGroupId: payload.assignee.characterGroupId,
-      }
-    : null;
   // transact() is reentrant: each writer call below opens its own transaction with
   // the same LOCAL_EDIT_ORIGIN, which Yjs merges into this already-open outer one
   // rather than committing separately — so the whole change reaches peers as one update.
+  let skippedLines = 0;
   writer.transact(() => {
     for (let i = bounds.startIndex; i <= bounds.endIndex; i += 1) {
       const line = draftLines.value[i];
       if (!line) continue;
-      if (payload.actScene) {
-        applyBulkActScene(
+      if (payload.kind === 'actScene') {
+        applyBulkActScene(currentPage.value, line, payload.actId, payload.sceneId);
+      } else if (
+        !applyBulkCharacter(
           currentPage.value,
           line,
-          payload.actScene.actId,
-          payload.actScene.sceneId
-        );
-      }
-      if (character) {
-        applyBulkCharacter(
-          currentPage.value,
-          line,
-          character.targetPartIndex,
-          character.characterId,
-          character.characterGroupId
-        );
+          payload.partIndex - 1,
+          payload.characterId,
+          payload.characterGroupId
+        )
+      ) {
+        skippedLines += 1;
       }
     }
   });
+  if (payload.kind === 'assignee' && skippedLines > 0) {
+    toast.warning(
+      `${skippedLines} selected ${skippedLines === 1 ? 'line has' : 'lines have'} no part ${
+        payload.partIndex
+      }, so ${skippedLines === 1 ? 'it was' : 'they were'} skipped.`
+    );
+  }
 }
 
-function onSetCharacterApply(assignee: {
-  partIndex: number;
-  characterId: number | null;
-  characterGroupId: number | null;
-}): void {
-  const narrowed = narrowAssignee(assignee);
-  if (!narrowed) return;
-  applyToSelection({ actScene: null, assignee: narrowed });
+function onSetCharacterApply(assignee: CharacterAssignee): void {
+  applyToSelection({ kind: 'assignee', ...assignee });
   setCharDialog.value?.hide();
   clearSelection();
 }
 
 function onMoveToSceneApply(payload: { actId: number; sceneId: number }): void {
-  applyToSelection({ actScene: payload, assignee: null });
+  applyToSelection({ kind: 'actScene', ...payload });
   moveToSceneModal.value?.hide();
   clearSelection();
 }
@@ -1449,20 +1464,40 @@ onMounted(async () => {
   window.addEventListener('resize', calculateNavbarHeight);
   calculateNavbarHeight();
 
-  await Promise.all([
-    showStore.getActList(),
-    showStore.getSceneList(),
-    showStore.getCharacterList(),
-    showStore.getCharacterGroupList(),
-    scriptStore.getStageDirectionStyles(),
-    scriptConfigStore.getScriptConfigStatus(),
-    scriptStore.getCuts(),
-  ]);
+  // A rejected load must not leave the page stuck on its loading state with no
+  // feedback: report which loaders failed, then carry on so the editor still renders and
+  // can join the draft room (the draft itself supplies the editor's content). allSettled,
+  // so one failing reference load doesn't also skip the others or the page restore below.
+  const referenceLoads: [string, Promise<unknown>][] = [
+    ['acts', showStore.getActList()],
+    ['scenes', showStore.getSceneList()],
+    ['characters', showStore.getCharacterList()],
+    ['character groups', showStore.getCharacterGroupList()],
+    ['stage direction styles', scriptStore.getStageDirectionStyles()],
+    ['editor status', scriptConfigStore.getScriptConfigStatus()],
+    ['cuts', scriptStore.getCuts()],
+  ];
+  const results = await Promise.allSettled(referenceLoads.map(([, load]) => load));
+  const failedLoads: string[] = [];
+  results.forEach((result, i) => {
+    if (result.status !== 'rejected') return;
+    const name = referenceLoads[i]![0];
+    failedLoads.push(name);
+    log.error(`Failed to load ${name}`, result.reason);
+  });
+  if (failedLoads.length > 0) {
+    toast.error(`Could not load ${failedLoads.join(', ')} — try refreshing the page`);
+  }
   linePartCuts.value = [...scriptStore.cuts];
 
   const storedPage = Number.parseInt(localStorage.getItem('scriptEditPage') ?? '1', 10);
   currentPage.value = Number.isInteger(storedPage) && storedPage > 0 ? storedPage : 1;
-  await loadViewerPage(currentPage.value);
+  try {
+    await loadViewerPage(currentPage.value);
+  } catch (error) {
+    log.error('Failed to load the script page', error);
+    toast.error('Could not load the script page — try refreshing the page');
+  }
 
   loaded.value = true;
   // Join unconditionally (Phase 4 Step A) — the server decides editor vs viewer role

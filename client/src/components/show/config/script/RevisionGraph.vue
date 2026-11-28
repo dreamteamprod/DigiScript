@@ -2,7 +2,13 @@
   <div ref="containerRef" class="revision-graph-container">
     <div v-if="!hasRevisions" class="text-center py-5 text-muted">No revisions to display</div>
     <div v-else class="graph-wrapper">
-      <svg ref="svgRef" :width="width" :height="height" class="revision-graph">
+      <svg
+        ref="svgRef"
+        :width="width"
+        :height="height"
+        class="revision-graph"
+        aria-label="Script revision history graph"
+      >
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
             <polygon points="0 0, 10 3, 0 6" fill="#6c757d" />
@@ -270,7 +276,16 @@ watch(
   fill: #007bff;
   stroke: #0056b3;
   stroke-width: 2px;
-  transition: all 0.2s ease;
+  transition:
+    fill 0.2s ease,
+    stroke 0.2s ease,
+    stroke-width 0.2s ease,
+    filter 0.2s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .revision-node {
+    transition: none;
+  }
 }
 .node-group:hover .revision-node {
   fill: #0056b3;
