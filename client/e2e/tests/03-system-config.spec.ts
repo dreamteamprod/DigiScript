@@ -16,16 +16,36 @@ import {
   confirmDialog,
 } from '../helpers.js';
 import { registerRetryHooks } from '../db-snapshot.js';
+import { newContext, docShot } from '../docs-shots.js';
 
 test.describe.configure({ mode: 'serial' });
 
 registerRetryHooks();
 
+/** Created/last-login/last-seen times in the users table are wall-clock values of this run. */
+function userTableDates(page: Page) {
+  return [
+    { locator: page.locator('#users-table tbody tr td:nth-child(2)'), text: '2025-01-06 09:30:12' },
+    { locator: page.locator('#users-table tbody tr td:nth-child(3)'), text: '2025-01-06 09:41:03' },
+    { locator: page.locator('#users-table tbody tr td:nth-child(4)'), text: '2025-01-06 09:52:47' },
+  ];
+}
+
+/** The General settings card shows this run's temp-directory paths (database, scripts). */
+function settingsPaths(page: Page) {
+  const textInput = (n: number) => page.locator('.tab-pane.active input[type="text"]').nth(n);
+  return [
+    { locator: textInput(0), text: 'sqlite:///conf/digiscript.sqlite' },
+    { locator: textInput(1), text: 'conf/compiled_scripts' },
+    { locator: textInput(2), text: 'conf/draft_scripts' },
+  ];
+}
+
 let ctx: BrowserContext;
 let page: Page;
 
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext();
+  ctx = await newContext(browser);
   page = await ctx.newPage();
   await loginAsAdmin(page);
 });
@@ -69,6 +89,9 @@ test('creates and loads a show via Save and Load', async () => {
     .waitForSelector('#show-script-mode-input option:not([value=""])', { timeout: 5_000 })
     .catch(() => {});
   await page.selectOption('#show-script-mode-input', { index: 0 });
+  await docShot(page, 'getting_started/create_show');
+  // Same form; the doc's script-mode section shows the modal as it stands here.
+  await docShot(page, 'config_show/config_system_new_show_advanced_options');
 
   // The frontend's SHOW_CHANGED WS handler calls window.location.reload() after the show is
   // loaded. On fast runners this fires before waitForModalClosed returns; on slow CI runners it
@@ -103,6 +126,15 @@ test('creates a second show to use as a deletion target', async () => {
   await page.locator('.modal.show').getByRole('button', { name: 'Save', exact: true }).click();
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("E2E Show to Delete")')).toBeVisible();
+  // A saved-but-not-loaded show: its row offers the Load button.
+  await docShot(page, 'getting_started/load_show', {
+    fixText: [
+      {
+        locator: page.locator('.tab-pane.active table tbody tr td:nth-child(5)'),
+        text: '2025-01-06T09:30:12.104744',
+      },
+    ],
+  });
 });
 
 test('delete button is disabled for the currently loaded show', async () => {
@@ -147,6 +179,9 @@ test('creates a non-admin user', async () => {
   await page.click('.modal.show button:has-text("Save")');
   await waitForModalClosed(page);
   await expect(page.locator('td:has-text("testuser")')).toBeVisible();
+  await docShot(page, 'config_user/users_overview_new', {
+    fixText: userTableDates(page),
+  });
 });
 
 test('can configure RBAC permissions for testuser', async () => {
@@ -287,6 +322,12 @@ test('resets the non-admin user password', async () => {
   await page.locator('.modal.show button:has-text("Reset Password")').click();
   // Temporary password shown — Done button appears
   await expect(page.locator('.modal.show button:has-text("Done")')).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_user/reset_password_modal', {
+    fixText: [
+      { locator: page.locator('.modal.show input'), text: 'amber-river-quiet-stone' },
+      ...userTableDates(page),
+    ],
+  });
   await page.locator('.modal.show button:has-text("Done")').click();
   await waitForModalClosed(page);
 });
@@ -333,6 +374,7 @@ test('Security category can be expanded to reveal JWT Token Lifetime', async () 
   // Security card is collapsed by default — click the header to expand
   await page.locator('.card-header:has-text("Security")').click();
   await expect(page.locator('#jwt_token_lifetime_hours-input')).toBeVisible({ timeout: 5_000 });
+  await docShot(page, 'config_system/settings_tab', { fixText: settingsPaths(page) });
 });
 
 test('JWT Token Lifetime dropdown shows human-readable labels', async () => {
@@ -361,6 +403,9 @@ test('Telemetry category can be expanded, reflecting the choice saved during fir
   // state. Checking for the default (true) wouldn't prove anything, since that's also what
   // the setting would read even if the save had silently done nothing at all.
   await expect(telemetryCheckbox).not.toBeChecked();
+  await docShot(page, 'config_system/settings_telemetry_category', {
+    fixText: settingsPaths(page),
+  });
 });
 
 test('can change JWT Token Lifetime and submit successfully', async () => {
@@ -377,14 +422,35 @@ test('can change JWT Token Lifetime and submit successfully', async () => {
   // match the server, making hasChanges false. Selecting before this settles causes a race where
   // the WS update overwrites our selection and Submit stays disabled.
   await expect(page.locator('button:has-text("Submit")')).toBeDisabled({ timeout: 10_000 });
-  // Restore default (1 day = 24 hours)
-  await select.selectOption({ label: '1 day' });
-  await expect(page.locator('button:has-text("Submit")')).toBeEnabled({ timeout: 3_000 });
-  await page.locator('button:has-text("Submit")').click();
-  await page
-    .locator('.v-toast__item')
-    .waitFor({ state: 'detached', timeout: 10_000 })
-    .catch(() => {});
+  // Restore default (1 day = 24 hours). A late WS SETTINGS_CHANGED broadcast can overwrite the
+  // selection after Submit has enabled (the race described above), so re-select and submit as
+  // one retried step rather than asserting between the two.
+  await expect(async () => {
+    await select.selectOption({ label: '1 day' });
+    // Wait for this attempt's own PATCH to be answered rather than for a toast: the first
+    // Submit's "Saved settings" toast can still be on screen, and a retried attempt can add more.
+    const saved = page.waitForResponse(
+      (r) => r.request().method() === 'PATCH' && new URL(r.url()).pathname === '/api/v1/settings',
+      { timeout: 5_000 }
+    );
+    saved.catch(() => {}); // a failed attempt is retried; don't leave its rejection unhandled
+    await page.locator('button:has-text("Submit")').click({ timeout: 5_000 });
+    const response = await saved;
+    // Not part of the predicate, so a 4xx/5xx shows its status and body rather than a timeout.
+    expect(
+      response.ok(),
+      `PATCH /api/v1/settings: ${response.status()} ${await response.text()}`
+    ).toBe(true);
+  }).toPass({ timeout: 30_000 });
+  // Let the toasts clear so nothing leaks into the next test.
+  await expect(page.locator('.v-toast__item')).toHaveCount(0, { timeout: 15_000 });
+
+  // The restore must really have been saved: later specs assume the default lifetime.
+  await page.reload();
+  await waitForAppReady(page);
+  await page.click('.nav-link:has-text("Settings")');
+  await page.locator('.card-header:has-text("Security")').click();
+  await expect(page.locator('#jwt_token_lifetime_hours-input option:checked')).toHaveText('1 day');
 });
 
 // ── System tab ────────────────────────────────────────────────────────────
@@ -404,6 +470,20 @@ test('System tab shows server info rows', async () => {
   await expect(page.locator('strong:has-text("Hostname")')).toBeVisible();
   await expect(page.locator('strong:has-text("IP Address")')).toBeVisible();
   await expect(page.locator('strong:has-text("Port")')).toBeVisible();
+  const infoRow = (label: string) =>
+    page
+      .locator('tr', { has: page.locator(`strong:has-text("${label}")`) })
+      .locator('td')
+      .nth(1);
+  await docShot(page, 'config_system/system_overview', {
+    fixText: [
+      { locator: infoRow('Hostname'), text: 'digiscript-server' },
+      { locator: infoRow('IP Address'), text: '192.168.1.20' },
+      { locator: infoRow('Port'), text: '8080' },
+      // The version and its status badge depend on the build and on reaching GitHub.
+      { locator: infoRow('Version'), text: '2.0.0 (Up to date)' },
+    ],
+  });
 });
 
 test('can open the View Clients modal', async () => {

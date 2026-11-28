@@ -31,7 +31,10 @@
     "test:e2e": "playwright test --project=chromium",
     "test:e2e:firefox": "playwright test --project=firefox",
     "test:e2e:all": "playwright test",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:docs": "DOCS_SCREENSHOTS=1 playwright test --project=chromium --update-snapshots=${DOCS_UPDATE:-changed}",
+    "test:e2e:docs:docker": "../scripts/docs-screenshots-docker.sh",
+    "docs:shots:check": "node ../scripts/check-docs-screenshots.mjs"
   },
   "engines": {
     "node": ">=24.15.0 <25"
