@@ -600,8 +600,11 @@ test('Find offers close matches when there is no exact one', async () => {
   await expect(page.getByText('No LX 005 yet. Did you mean:')).not.toBeVisible();
 });
 
-test('Find jumps to a cue and says where it went', async () => {
+test('Find lists matches as you type, and Enter jumps to the cue and says where it went', async () => {
   await findBox().fill('LX 004');
+  // After a short pause the match is listed; nothing moves until you choose it.
+  await expect(page.getByRole('option', { name: /LX 004/ })).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.v-toast__text').filter({ hasText: /Jumped to/ })).not.toBeVisible();
   await findBox().press('Enter');
   await expect(page.locator('.v-toast__text').filter({ hasText: /Jumped to LX 004/ })).toBeVisible({
     timeout: 5_000,
@@ -630,7 +633,10 @@ test('deletes a cue after confirming', async () => {
     .getByRole('button', { name: 'Delete Cue' })
     .click();
   await confirmDialog(page);
-  await expect(realCues()).toHaveCount(1, { timeout: 5_000 });
+  await expect(realCues()).toHaveCount(1, { timeout: 10_000 });
+  // Deleting your own cue is not "someone else" changing it, and focus goes back to "+ Cue".
+  await expect(page.getByText('changed or removed by someone else')).not.toBeVisible();
+  await expect(page.locator('.add-cue-btn').first()).toBeFocused();
 });
 
 test('deletes the last cue', async () => {
@@ -640,7 +646,8 @@ test('deletes the last cue', async () => {
     .getByRole('button', { name: 'Delete Cue' })
     .click();
   await confirmDialog(page);
-  await expect(realCues()).not.toBeVisible({ timeout: 5_000 });
+  await expect(realCues()).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('changed or removed by someone else')).not.toBeVisible();
 });
 
 // ── Cue Groups ────────────────────────────────────────────────────────────
@@ -718,7 +725,8 @@ test('deletes the cue group after confirming', async () => {
     .getByRole('button', { name: 'Delete Group' })
     .click();
   await confirmDialog(page);
-  await expect(page.locator('.cue-group-btn')).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.locator('.cue-group-btn')).not.toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText('changed or removed by someone else')).not.toBeVisible();
 });
 
 test('a group of 100 cues scrolls inside the card instead of stretching it', async () => {

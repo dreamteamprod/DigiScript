@@ -109,9 +109,9 @@ A script line can freely mix individual cues and groups simultaneously.
 
 ##### Finding a Cue
 
-Type a cue's type and number in the **Find** box, such as `LX 12`, and press **Enter** or click **Find**. The search is not case-sensitive.
+Type a cue's type and number in the **Find** box, such as `LX 12`. After a short pause the matching cues are listed under the box, so you can see what you are about to jump to; nothing moves until you choose one. Press **Enter** or click **Find** to go straight to the cue without waiting. The search is not case-sensitive.
 
-- If exactly one cue matches, the page opens, the line is marked briefly and a message tells you where you went.
+- If exactly one cue matches, **Enter** or **Find** opens its page, marks the line briefly and tells you where you went. While you are still typing, that one match is listed instead, so typing `LX 1` on the way to `LX 14` does not take you away from the page.
 - If several cues match, they are listed with their page, act, scene and the start of their line. Use the up and down arrow keys to choose one and **Enter** to go to it, or click it. **Esc** closes the list.
 - If none match, you are shown the closest numbers (**Did you mean:**), or told that no cues were found.
 - If you type a number without a cue type, you are asked which type it is.

@@ -247,6 +247,8 @@ const emit = defineEmits<{
   'switch-single': [];
   /** Whether the card holds changes that would be lost if it closed. */
   dirty: [value: boolean];
+  /** This card has its own change request in flight (so a reload it causes is not "someone else"). */
+  busy: [value: boolean];
 }>();
 
 const uid = useId();
@@ -436,6 +438,7 @@ async function submit(): Promise<void> {
   const typeId = selectedTypeId.value;
   if (!valid.value || typeId == null || submitting.value) return;
   submitting.value = true;
+  emit('busy', true);
   error.value = null;
   const label = previewLabel.value;
   const label_override = labelOverride.value.trim();
@@ -462,11 +465,13 @@ async function submit(): Promise<void> {
   } catch {
     error.value = `${label} was not ${props.mode === 'add' ? 'added' : 'saved'}. Your entries are still here, so you can try again.`;
     submitting.value = false;
+    emit('busy', false);
     return;
   }
   submitting.value = false;
   if (props.mode === 'add') emit('added', typeId);
   emit('done');
+  emit('busy', false);
 }
 
 async function onDelete(): Promise<void> {
@@ -477,6 +482,7 @@ async function onDelete(): Promise<void> {
   );
   if (!confirmed) return;
   submitting.value = true;
+  emit('busy', true);
   error.value = null;
   try {
     const ok = await scriptStore.deleteCueGroup({
@@ -487,10 +493,12 @@ async function onDelete(): Promise<void> {
   } catch {
     error.value = `${previewLabel.value} was not deleted. Please try again.`;
     submitting.value = false;
+    emit('busy', false);
     return;
   }
   submitting.value = false;
   emit('done');
+  emit('busy', false);
 }
 
 onMounted(() => {

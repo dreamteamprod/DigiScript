@@ -1,5 +1,5 @@
 <template>
-  <div ref="root" class="cue-find" @keydown.esc="closePanel">
+  <div ref="root" class="cue-find" @keydown.esc="dismiss">
     <label :for="`${uid}-input`" class="visually-hidden">Find a cue</label>
     <input
       :id="`${uid}-input`"
@@ -129,6 +129,14 @@ const activeOption = ref<number | null>(null);
 const pendingNumber = ref('');
 const lastQuery = ref('');
 const forcedTypes = ref<CueType[] | null>(null);
+/** The text the current results were found for, so results for older text are not trusted. */
+const resultsText = ref('');
+
+/** Pause after the last keystroke before searching as you type. */
+const DEBOUNCE_MS = 300;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+/** Incremented for every search and every edit, so an answer to an older one is ignored. */
+let requestId = 0;
 
 const searching = computed(() => state.value === 'searching');
 const panelOpen = computed(() => state.value !== 'idle');
@@ -139,17 +147,47 @@ function closePanel(): void {
   activeOption.value = null;
 }
 
+/** Esc: close the list and drop any search that is waiting or on its way. */
+function dismiss(): void {
+  cancelPending();
+  closePanel();
+}
+
+function cancelPending(): void {
+  if (debounceTimer != null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  requestId += 1;
+}
+
+/**
+ * Search as you type, after a short pause. These searches only fill the list: a single exact
+ * match does not jump (typing "LX 13" passes through "LX 1"), so nothing moves until Enter,
+ * Find or a click. A bare number or prefix is not searched until asked for.
+ */
 function onInput(): void {
-  // Searching happens on Enter or Find, not on every keystroke.
   forcedTypes.value = null;
-  if (state.value !== 'idle') closePanel();
+  cancelPending();
+  const query = parseFindQuery(text.value, showStore.cueTypes);
+  if (query.kind !== 'search') {
+    closePanel();
+    return;
+  }
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    void run(undefined, true);
+  }, DEBOUNCE_MS);
 }
 
 function onEnter(): void {
-  if (state.value === 'results' && activeOption.value != null) {
+  // Results shown for text that has since changed must not be opened by mistake.
+  const fresh = resultsText.value === text.value.trim();
+  if (state.value === 'results' && activeOption.value != null && fresh) {
     pick(results.value[activeOption.value]);
     return;
   }
+  cancelPending();
   void run();
 }
 
@@ -171,7 +209,7 @@ function searchWithType(typeId: number): void {
   void run(pendingNumber.value);
 }
 
-async function run(numberOverride?: string): Promise<void> {
+async function run(numberOverride?: string, typing = false): Promise<void> {
   const query = numberOverride != null ? null : parseFindQuery(text.value, showStore.cueTypes);
   let types: CueType[];
   let number: string;
@@ -195,7 +233,11 @@ async function run(numberOverride?: string): Promise<void> {
   lastQuery.value = forcedTypes.value
     ? `${forcedTypes.value[0].prefix} ${number}`
     : text.value.trim();
-  state.value = 'searching';
+  requestId += 1;
+  const myRequest = requestId;
+  const searchedText = text.value.trim();
+  // While typing, the previous results stay up until the new ones replace them.
+  if (!typing) state.value = 'searching';
   let response: FindResponse;
   try {
     const responses = await Promise.all(
@@ -205,11 +247,13 @@ async function run(numberOverride?: string): Promise<void> {
     );
     response = mergeFindResponses(responses as FindResponse[]);
   } catch {
-    state.value = 'error';
+    if (myRequest === requestId) state.value = 'error';
     return;
   }
+  // Something newer (more typing, or another search) has taken over.
+  if (myRequest !== requestId) return;
 
-  if (response.exact_matches.length === 1) {
+  if (response.exact_matches.length === 1 && !typing) {
     closePanel();
     emit('jump', response.exact_matches[0]);
     return;
@@ -219,9 +263,14 @@ async function run(numberOverride?: string): Promise<void> {
     state.value = 'none';
     return;
   }
+  resultsText.value = searchedText;
   if (response.exact_matches.length > 0) {
+    const count = response.exact_matches.length;
     heading.value = {
-      text: `${response.exact_matches.length} cues are numbered ${lastQuery.value}`,
+      text:
+        count === 1
+          ? `1 cue is numbered ${lastQuery.value}`
+          : `${count} cues are numbered ${lastQuery.value}`,
       warn: false,
     };
   } else {
@@ -280,7 +329,10 @@ function onDocumentPointer(event: Event): void {
   if (root.value && !root.value.contains(event.target as Node)) closePanel();
 }
 onMounted(() => document.addEventListener('pointerdown', onDocumentPointer));
-onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocumentPointer));
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onDocumentPointer);
+  cancelPending();
+});
 
 defineExpose({
   /** Put the cursor in the box. */

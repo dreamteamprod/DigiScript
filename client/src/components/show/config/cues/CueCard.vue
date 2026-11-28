@@ -172,6 +172,8 @@ const emit = defineEmits<{
   /** A cue was added; `stay` is true for "Add and Stay Open". */
   added: [typeId: number, stay: boolean];
   'switch-group': [];
+  /** This card has its own change request in flight (so a reload it causes is not "someone else"). */
+  busy: [value: boolean];
 }>();
 
 const uid = useId();
@@ -340,6 +342,7 @@ async function submitAdd(stay: boolean): Promise<void> {
 async function submitEdit(): Promise<void> {
   if (!props.cue || selectedTypeId.value == null || !trimmedIdent.value || submitting.value) return;
   submitting.value = true;
+  emit('busy', true);
   error.value = null;
   try {
     const ok = await scriptStore.editCue({
@@ -352,10 +355,13 @@ async function submitEdit(): Promise<void> {
   } catch {
     error.value = `${editLabel.value} was not saved. Your entry is still here, so you can try again.`;
     submitting.value = false;
+    emit('busy', false);
     return;
   }
   submitting.value = false;
+  // Close first, then clear busy: the cue this card was editing may already have changed.
   emit('done');
+  emit('busy', false);
 }
 
 async function onDelete(): Promise<void> {
@@ -366,6 +372,7 @@ async function onDelete(): Promise<void> {
   );
   if (!confirmed) return;
   submitting.value = true;
+  emit('busy', true);
   error.value = null;
   try {
     const ok = await scriptStore.deleteCue({
@@ -376,10 +383,12 @@ async function onDelete(): Promise<void> {
   } catch {
     error.value = `${editLabel.value} was not deleted. Please try again.`;
     submitting.value = false;
+    emit('busy', false);
     return;
   }
   submitting.value = false;
   emit('done');
+  emit('busy', false);
 }
 
 onMounted(() => {

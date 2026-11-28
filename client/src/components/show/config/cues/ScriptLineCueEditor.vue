@@ -166,6 +166,7 @@
             @done="emit('close-card')"
             @added="(typeId, stay) => emit('added', typeId, stay)"
             @switch-group="addMode = 'group'"
+            @busy="(value) => (cardBusy = value)"
           />
           <CueGroupCard
             v-else-if="cardKind === 'add'"
@@ -178,17 +179,19 @@
             @added="(typeId) => emit('added', typeId, false)"
             @switch-single="switchToSingle"
             @dirty="(value) => emit('dirty', value)"
+            @busy="(value) => (cardBusy = value)"
           />
           <CueCard
-            v-else-if="cardKind === 'edit-cue' && targetCue"
-            :key="`edit_${targetCue.id}`"
+            v-else-if="cardKind === 'edit-cue' && shownCue"
+            :key="`edit_${shownCue.id}`"
             mode="edit"
             :line="line"
             :line-label="lineLabel"
-            :cue="targetCue"
+            :cue="shownCue"
             :type-id="null"
             @cancel="emit('close-card')"
             @done="emit('close-card')"
+            @busy="(value) => (cardBusy = value)"
           />
           <CueCard
             v-else-if="cardKind === 'view' && targetCue"
@@ -199,17 +202,18 @@
             :type-id="null"
           />
           <CueGroupCard
-            v-else-if="cardKind === 'edit-group' && targetGroup"
-            :key="`group_${targetGroup.group.id}`"
+            v-else-if="cardKind === 'edit-group' && shownGroup"
+            :key="`group_${shownGroup.group.id}`"
             mode="edit"
             :line="line"
             :line-label="lineLabel"
-            :group="targetGroup.group"
-            :group-cues="targetGroup.cues"
+            :group="shownGroup.group"
+            :group-cues="shownGroup.cues"
             :type-id="null"
             @cancel="emit('cancel-card')"
             @done="emit('close-card')"
             @dirty="(value) => emit('dirty', value)"
+            @busy="(value) => (cardBusy = value)"
           />
         </BCol>
       </BRow>
@@ -419,10 +423,49 @@ const targetGroup = computed(() => {
   );
 });
 
+// True while the open card is itself saving or deleting. The reload that follows removes or
+// replaces what it was showing, which is not "someone else" changing it.
+const cardBusy = ref(false);
+// A card that goes away mid-request must not leave the next one thinking it is busy.
+watch(
+  () => cardHere.value,
+  (open) => {
+    if (!open) {
+      cardBusy.value = false;
+      cueSnapshot.value = null;
+      groupSnapshot.value = null;
+    }
+  }
+);
+
+// While the card is saving or deleting, the reload removes (or replaces) the very cue or group
+// it shows. Keep showing the last one it had, so the card stays mounted to finish and close.
+const cueSnapshot = ref<Cue | null>(null);
+const groupSnapshot = ref<typeof targetGroup.value>(null);
+watch(
+  targetCue,
+  (value) => {
+    if (value) cueSnapshot.value = value;
+  },
+  { immediate: true }
+);
+watch(
+  targetGroup,
+  (value) => {
+    if (value) groupSnapshot.value = value;
+  },
+  { immediate: true }
+);
+const shownCue = computed(() => targetCue.value ?? (cardBusy.value ? cueSnapshot.value : null));
+const shownGroup = computed(
+  () => targetGroup.value ?? (cardBusy.value ? groupSnapshot.value : null)
+);
+
 // If a reload removes the cue or group being edited, the page closes the card and says so.
 watch(
   () =>
     cardHere.value &&
+    !cardBusy.value &&
     ((props.activeCard?.cueId != null && !targetCue.value) ||
       (props.activeCard?.groupId != null && !targetGroup.value)),
   (gone) => {

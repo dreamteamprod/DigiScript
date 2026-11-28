@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount } from '@vue/test-utils';
 import ScriptLineCueEditor from './ScriptLineCueEditor.vue';
@@ -11,6 +11,10 @@ import { LINE_TYPES } from '@/constants/lineTypes';
 import type { Cue } from '@/types/api/cues';
 import type { ScriptLine } from '@/types/api/script';
 import type { ActiveCueCard } from '@/types/cueCard';
+
+const confirmMock = vi.fn();
+vi.mock('@/composables/useConfirm', () => ({ useConfirm: () => ({ confirm: confirmMock }) }));
+vi.mock('@/js/toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const characters = [
   { id: 1, name: 'Alice' },
@@ -156,9 +160,21 @@ function mountLine(
     cuts?: number[];
     activeCard?: ActiveCueCard | null;
     filterTypeId?: number | null;
+    /** Render the real cards instead of stubs. */
+    realCards?: boolean;
+    /** Called when the line asks for its card to be closed (as CueEditor does). */
+    onCloseCard?: () => void;
   } = {}
 ) {
-  const { admin = true, writable = [], cuts = [], activeCard = null, filterTypeId = null } = opts;
+  const {
+    admin = true,
+    writable = [],
+    cuts = [],
+    activeCard = null,
+    filterTypeId = null,
+    realCards = false,
+    onCloseCard,
+  } = opts;
   useShowStore().cueTypes = [LXT, SNDT];
   useSystemStore().rbacRoles = [{ key: 'WRITE', value: 2 }];
   useUserStore().currentUser = { id: 1, is_admin: admin } as never;
@@ -179,6 +195,7 @@ function mountLine(
       cuts,
       activeCard,
       filterTypeId,
+      ...(onCloseCard ? { 'onClose-card': onCloseCard } : {}),
     },
     global: {
       stubs: {
@@ -186,8 +203,7 @@ function mountLine(
         BRow: passthrough('div'),
         BCol: passthrough('div'),
         BAlert: passthrough('div'),
-        CueCard: true,
-        CueGroupCard: true,
+        ...(realCards ? {} : { CueCard: true, CueGroupCard: true }),
       },
     },
   });
@@ -375,5 +391,141 @@ describe('ScriptLineCueEditor "+ Cue" and cue buttons', () => {
 
     expect(w.findComponent({ name: 'CueCard' }).exists()).toBe(false);
     expect(w.find('.add-cue-btn').text()).toBe('+ Cue');
+  });
+});
+
+describe('ScriptLineCueEditor and the card\u2019s own changes', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    confirmMock.mockReset();
+    confirmMock.mockResolvedValue(true);
+  });
+
+  const lineWithCue = () => {
+    const dialogue = line(1, LINE_TYPES.DIALOGUE, 1, 'Hello');
+    useScriptStore().cues = { '1': [cueOn(5, 1, '14')] };
+    return dialogue;
+  };
+
+  it('does not say "someone else" when the card deleted the cue itself', async () => {
+    const dialogue = lineWithCue();
+    const store = useScriptStore();
+    // Like the real action: the cue is gone from the store by the time the request resolves.
+    vi.spyOn(store, 'deleteCue').mockImplementation(async () => {
+      store.cues = { '1': [] };
+      await flushPromises();
+      return true;
+    });
+    const w = mountLine(dialogue, {
+      realCards: true,
+      activeCard: { lineId: 1, kind: 'edit-cue', cueId: 5 },
+      // CueEditor clears the open card as soon as the line asks it to close.
+      onCloseCard: () => void w.setProps({ activeCard: null }),
+    });
+    await flushPromises();
+
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Delete Cue')!
+      .trigger('click');
+    await flushPromises();
+
+    expect(w.emitted('close-card')).toHaveLength(1);
+    expect(w.emitted('target-gone')).toBeUndefined();
+  });
+
+  it('does not say "someone else" when the card saved a cue that was replaced by a new one', async () => {
+    const dialogue = lineWithCue();
+    const store = useScriptStore();
+    // Saving a cue shared with another revision gives it a new id.
+    vi.spyOn(store, 'editCue').mockImplementation(async () => {
+      store.cues = { '1': [cueOn(77, 1, '15')] };
+      await flushPromises();
+      return true;
+    });
+    const w = mountLine(dialogue, {
+      realCards: true,
+      activeCard: { lineId: 1, kind: 'edit-cue', cueId: 5 },
+      // CueEditor clears the open card as soon as the line asks it to close.
+      onCloseCard: () => void w.setProps({ activeCard: null }),
+    });
+    await flushPromises();
+
+    await w.find('input.cue-number-input').setValue('15');
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Save Cue')!
+      .trigger('click');
+    await flushPromises();
+
+    expect(w.emitted('close-card')).toHaveLength(1);
+    expect(w.emitted('target-gone')).toBeUndefined();
+  });
+
+  it('still says so when someone else removes the cue while the card is idle', async () => {
+    const dialogue = lineWithCue();
+    const w = mountLine(dialogue, {
+      realCards: true,
+      activeCard: { lineId: 1, kind: 'edit-cue', cueId: 5 },
+    });
+    await flushPromises();
+
+    useScriptStore().cues = { '1': [] };
+    await flushPromises();
+
+    expect(w.emitted('target-gone')).toHaveLength(1);
+  });
+
+  it('does not say "someone else" when the group card deleted its own group', async () => {
+    const dialogue = line(1, LINE_TYPES.DIALOGUE, 1, 'Hello');
+    const store = useScriptStore();
+    store.cues = {
+      '1': [
+        cueOn(7, 1, '10', { group_id: 9, sort_order: 0 }),
+        cueOn(8, 1, '11', { group_id: 9, sort_order: 1 }),
+      ],
+    };
+    store.cueGroups = [{ id: 9, cue_type_id: 1, label_override: 'Storm' }];
+    vi.spyOn(store, 'deleteCueGroup').mockImplementation(async () => {
+      store.cues = { '1': [] };
+      store.cueGroups = [];
+      await flushPromises();
+      return true;
+    });
+    const w = mountLine(dialogue, {
+      realCards: true,
+      activeCard: { lineId: 1, kind: 'edit-group', groupId: 9 },
+      onCloseCard: () => void w.setProps({ activeCard: null }),
+    });
+    await flushPromises();
+
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Delete Group')!
+      .trigger('click');
+    await flushPromises();
+
+    expect(w.emitted('close-card')).toHaveLength(1);
+    expect(w.emitted('target-gone')).toBeUndefined();
+  });
+
+  it('a card that failed to delete stays open and does not blame someone else', async () => {
+    const dialogue = lineWithCue();
+    vi.spyOn(useScriptStore(), 'deleteCue').mockResolvedValue(false);
+    const w = mountLine(dialogue, {
+      realCards: true,
+      activeCard: { lineId: 1, kind: 'edit-cue', cueId: 5 },
+    });
+    await flushPromises();
+
+    await w
+      .findAll('button')
+      .find((b) => b.text() === 'Delete Cue')!
+      .trigger('click');
+    await flushPromises();
+
+    expect(w.emitted('close-card')).toBeUndefined();
+    expect(w.emitted('target-gone')).toBeUndefined();
+    expect(w.find('[role="alert"]').text()).toContain('was not deleted');
   });
 });
