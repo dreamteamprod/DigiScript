@@ -575,32 +575,28 @@ def _unlink_deleted_neighbours(
     """
     session = ctx.session
     revision_id = ctx.revision.id
-    next_assoc = None
-    prev_assoc = None
-    if assoc.next_line:
-        next_assoc = session.get(
-            ScriptLineRevisionAssociation, (revision_id, assoc.next_line.id)
-        )
-    if assoc.previous_line:
-        prev_assoc = session.get(
+    next_assoc = (
+        session.get(ScriptLineRevisionAssociation, (revision_id, assoc.next_line.id))
+        if assoc.next_line
+        else None
+    )
+    prev_assoc = (
+        session.get(
             ScriptLineRevisionAssociation, (revision_id, assoc.previous_line.id)
         )
+        if assoc.previous_line
+        else None
+    )
 
-    if assoc.next_line and assoc.previous_line:
-        if next_assoc:
-            next_assoc.previous_line = assoc.previous_line
-            session.flush()
-        if prev_assoc:
-            prev_assoc.next_line = next_assoc.line if next_assoc else None
-            session.flush()
-    elif assoc.next_line:
-        if next_assoc:
-            next_assoc.previous_line = None
-            session.flush()
-    elif assoc.previous_line:
-        if prev_assoc:
-            prev_assoc.next_line = None
-            session.flush()
+    # The next neighbour now follows our previous line (None if we had none); the
+    # previous neighbour now precedes our next line (None if we had none). The
+    # next side is updated first, as in the PATCH handler.
+    if next_assoc:
+        next_assoc.previous_line = assoc.previous_line
+        session.flush()
+    if prev_assoc:
+        prev_assoc.next_line = next_assoc.line if next_assoc else None
+        session.flush()
 
 
 def _delete_line_association(
