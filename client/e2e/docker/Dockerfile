@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Chromium + its system libraries and fonts. The version must match @playwright/test.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN npx --yes playwright@${PLAYWRIGHT_VERSION} install --with-deps chromium \
+RUN npx --yes "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work/client

@@ -15,7 +15,7 @@ IMAGE="digiscript-docs-screenshots"
 
 # The container's Playwright must match the version pinned in the lockfile exactly.
 PLAYWRIGHT_VERSION="$(sed -n 's/.*@playwright\/test@\([0-9][0-9.]*\).*/\1/p' "${ROOT}/client/pnpm-lock.yaml" | head -1)"
-if [ -z "${PLAYWRIGHT_VERSION}" ]; then
+if [[ -z "${PLAYWRIGHT_VERSION}" ]]; then
   echo "Could not determine the @playwright/test version from client/pnpm-lock.yaml" >&2
   exit 1
 fi
@@ -46,7 +46,7 @@ docker run --rm --shm-size=1g \
     fix_owner() {
       for path in /work/docs/images /work/server/static /work/client/public/docs \
                   /work/client/test-results /work/client/playwright-report /work/client/junit; do
-        if [ -e "$path" ]; then
+        if [[ -e "$path" ]]; then
           chown -R "${HOST_UID}:${HOST_GID}" "$path" || echo "warning: could not chown $path" >&2
         fi
       done
