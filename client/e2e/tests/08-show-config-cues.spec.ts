@@ -55,6 +55,18 @@ test('the Cue Types tab starts empty', async () => {
   await page.click('.nav-link:has-text("Script Cues")');
 });
 
+test('Import from Another Show opens the import dialog on the Cue Types tab', async () => {
+  await page.locator('.tab-pane.active button:has-text("Import from Another Show")').click();
+  await waitForModal(page, 'Import Cue Type');
+  await expect(page.locator('.nav-tabs .nav-link.active')).toHaveText('Cue Types');
+  await expect(page.locator('.modal.show')).toContainText(
+    'No cue types available to import from other shows.'
+  );
+  await page.locator('.modal.show .btn-close').click();
+  await waitForModalClosed(page);
+  await page.click('.nav-link:has-text("Script Cues")');
+});
+
 test('a suggested cue type opens the new type form, pre-filled, on the Cue Types tab', async () => {
   await page.locator('.tab-pane.active .suggestion-chip:has-text("LX")').click();
   await waitForModal(page, /Cue Type/);
